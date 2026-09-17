@@ -1,7 +1,7 @@
 {
-  "name": "electron-ai-agent",
+  "name": "nexus-agent",
   "version": "0.1.0",
-  "description": "Desktop AI Coding Agent powered by Electron, Node.js, and React",
+  "description": "NEXUS AGENT - Desktop AI Coding Agent powered by Bun, Electron, and React",
   "type": "module",
   "main": "./out/main/index.js",
   "author": "Antigravity Pair",

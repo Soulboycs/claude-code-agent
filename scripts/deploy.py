@@ -20,7 +20,7 @@ PORT = int(os.environ.get("SERVER_PORT", "22"))
 USER = os.environ.get("SERVER_USER", "root")
 PASSWORD = os.environ.get("SERVER_PASSWORD", "")
 DEPLOY_PATH = os.environ.get("DEPLOY_PATH", "/opt/claude-code-agent")
-REPO_URL = os.environ.get("REPO_URL", "https://github.com/Soulboycs/claude-code-agent.git")
+REPO_URL = os.environ.get("REPO_URL", "https://github.com/Soulboycs/nexus-agent.git")
 
 def deploy():
     ssh = paramiko.SSHClient()
