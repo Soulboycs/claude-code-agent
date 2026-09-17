@@ -4,9 +4,10 @@ import * as fs from 'fs'
 
 describe('Logger & Observability — TDD: 结构化日志系统', () => {
   it('masks sensitive API keys in strings and nested objects', () => {
-    const rawApiKey = '***REDACTED-DEEPSEEK-KEY***'
+    // 合成的同形状假 key（sk- + 32 hex）— 脱敏逻辑只依赖形状，严禁用真实凭据做测试输入
+    const rawApiKey = 'sk-0f1e2d3c4b5a69788796a5b4c3d2e1f0'
     const masked = maskSensitiveData(rawApiKey)
-    expect(masked).not.toContain('c74d22f3afc64341805f7af68ecad9f4')
+    expect(masked).not.toContain('0f1e2d3c4b5a69788796a5b4c3d2e1f0')
     expect(masked).toContain('***')
 
     const obj = { apiKey: rawApiKey, model: 'deepseek-chat', prompt: 'test' }

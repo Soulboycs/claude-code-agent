@@ -1,9 +1,13 @@
 /**
  * Real End-to-End Integration Test
- * Uses actual DeepSeek API key — real network calls, real tool execution
+ * Uses actual DeepSeek API — real network calls, real tool execution
  *
  * Tests the full chain:
  *   User prompt → AgentEngine → DeepSeek API → Tool calls → File system → Response
+ *
+ * 凭据注入约定（2026-09-17 P0 整改）：API key 一律来自环境变量 DEEPSEEK_API_KEY
+ * （bun 会自动加载本地 .env.local，该文件已被 .gitignore 忽略），严禁硬编码进
+ * 任何已提交文件。未配置 key 时本文件全部用例自动 SKIP，默认门禁保持绿灯。
  */
 import { describe, it, expect } from 'bun:test'
 import { createDefaultAgentEngine } from '../src/main/agent'
@@ -13,13 +17,37 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 
-// Real DeepSeek credentials
+// Real DeepSeek credentials — local-only injection via env / .env.local
+// 显式加载项目根 .env.local（实测 bun test 不会自动注入该文件）；文件不存在时
+// 静默跳过，保持无凭据状态 → 用例 SKIP。绝不硬编码。
+function loadLocalEnvFile(): void {
+  try {
+    const content = fs.readFileSync(new URL('../.env.local', import.meta.url), 'utf-8')
+    for (const line of content.split(/\r?\n/)) {
+      const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/)
+      if (!match) continue
+      const [, name, rawValue] = match
+      if (!(name in process.env)) process.env[name] = rawValue.replace(/^["']|["']$/g, '')
+    }
+  } catch {
+    // .env.local 不存在（CI / 无凭据机器）— 正常状态，真实 API 用例将 SKIP
+  }
+}
+loadLocalEnvFile()
+
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || ''
 const DEEPSEEK_CONFIG: ProviderConfig = {
   providerType: 'deepseek',
-  apiKey: '***REDACTED-DEEPSEEK-KEY***',
-  baseURL: 'https://api.deepseek.com/v1',
-  model: 'deepseek-v4.1-flash-expires-on-0910',
+  apiKey: DEEPSEEK_API_KEY,
+  baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
+  model: process.env.DEEPSEEK_MODEL || 'deepseek-v4.1-flash-expires-on-0910',
   temperature: 0.2
+}
+
+if (!DEEPSEEK_API_KEY) {
+  console.warn(
+    '[E2E] DEEPSEEK_API_KEY 未配置（请写入本地 .env.local，勿提交）— 真实 API e2e 用例将全部 SKIP'
+  )
 }
 
 const WORKSPACE = os.tmpdir()
@@ -40,7 +68,7 @@ async function runWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 // ─── Test 1: Raw provider chatStream ─────────────────────────────────────────
 describe('E2E — DeepSeek Raw API', () => {
-  it('streams a real text response from DeepSeek API', async () => {
+  it.skipIf(!DEEPSEEK_API_KEY)('streams a real text response from DeepSeek API', async () => {
     const provider = createProvider(DEEPSEEK_CONFIG)
 
     const chunks: string[] = []
@@ -66,7 +94,7 @@ describe('E2E — DeepSeek Raw API', () => {
 
 // ─── Test 2: AgentEngine single turn, no tools ───────────────────────────────
 describe('E2E — AgentEngine single turn', () => {
-  it('runs a full agent turn and emits message_delta events', async () => {
+  it.skipIf(!DEEPSEEK_API_KEY)('runs a full agent turn and emits message_delta events', async () => {
     const provider = createProvider(DEEPSEEK_CONFIG)
     const engine = createDefaultAgentEngine({
       workspaceRoot: WORKSPACE,
@@ -98,7 +126,7 @@ describe('E2E — AgentEngine single turn', () => {
 
 // ─── Test 3: Agent calls a real tool (list_directory) ────────────────────────
 describe('E2E — AgentEngine tool call', () => {
-  it('agent calls list_directory tool on real filesystem', async () => {
+  it.skipIf(!DEEPSEEK_API_KEY)('agent calls list_directory tool on real filesystem', async () => {
     const provider = createProvider(DEEPSEEK_CONFIG)
     const engine = createDefaultAgentEngine({
       workspaceRoot: WORKSPACE,
@@ -136,7 +164,7 @@ describe('E2E — AgentEngine tool call', () => {
 
 // ─── Test 4: Agent reads a real file ─────────────────────────────────────────
 describe('E2E — Agent reads a real file', () => {
-  it('agent reads a temp file and reports its content', async () => {
+  it.skipIf(!DEEPSEEK_API_KEY)('agent reads a temp file and reports its content', async () => {
     // Write a test file
     const testFile = path.join(WORKSPACE, 'nexus_e2e_test.txt')
     const testContent = 'NEXUS_FILE_CONTENT_12345'
@@ -176,7 +204,7 @@ describe('E2E — Agent reads a real file', () => {
 
 // ─── Test 5: Model selector — provider switches correctly ────────────────────
 describe('E2E — Provider switch via setProvider', () => {
-  it('engine accepts provider switch and runs successfully with new provider', async () => {
+  it.skipIf(!DEEPSEEK_API_KEY)('engine accepts provider switch and runs successfully with new provider', async () => {
     const provider1 = createProvider(DEEPSEEK_CONFIG)
     const engine = createDefaultAgentEngine({
       workspaceRoot: WORKSPACE,
@@ -213,7 +241,7 @@ describe('E2E — Provider switch via setProvider', () => {
 import { StreamPacer } from '../src/renderer/src/utils/streamPacer'
 
 describe('E2E — Real Live Streaming, TTFT & TPS Performance', () => {
-  it('measures real DeepSeek TTFT, live TPS and verifies 100% StreamPacer delivery', async () => {
+  it.skipIf(!DEEPSEEK_API_KEY)('measures real DeepSeek TTFT, live TPS and verifies 100% StreamPacer delivery', async () => {
     const provider = createProvider(DEEPSEEK_CONFIG)
     const engine = createDefaultAgentEngine({
       workspaceRoot: WORKSPACE,
