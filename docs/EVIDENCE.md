@@ -380,3 +380,12 @@ Ran 67 tests across 9 files. [13.80s]
 **未闭环事项（需人工）**:
 1. **key 轮换**: 该 key 已推送至公开远端，必须视为已泄露，需用户在 DeepSeek 控制台轮换，轮换后仅更新本地 `.env.local` 即可；
 2. **git 历史清除**: key 仍存在于历史提交（最早引入于真实 e2e 相关提交）与远端，需 `git filter-repo` 重写 + force-push，时机需与并行会话协调（另见 PROGRESS）。
+
+### 13.1 历史清除执行记录（同日完成）
+- 提交整理: 6 个逻辑提交（滚动修复/流式组件/补测与DOM套件/密钥脱敏/文档/并行会话测试）
+- 备份: `git bundle create ../nexus-agent-pre-filter-backup.bundle --all`（仓外全量，含旧历史，保留至密钥轮换确认后）
+- 重写: `git filter-repo --replace-text`（45 提交，0.13s）
+- 验证: `git grep <完整key> $(git rev-list --all)` → **零命中**；远端 `origin/main` 重推后同命令复验 → **零命中**
+- 推送: `git push --force --all origin`（`6917763...6bcb025 main -> main (forced update)`），远端与本地 hash 一致
+- 残留说明: 历史中存在 2 处 11 位前缀片段（`sk-c74d22f3`，不可复原，非凭据）与 HEAD 中 `sk-c74d***REDACTED***` 脱敏标记，均不构成泄露
+- 限制: GitHub 服务端对旧提交 SHA 的缓存可能仍可访问，彻底清除需联系 GitHub support；**key 轮换仍待用户执行**

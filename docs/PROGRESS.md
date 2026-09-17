@@ -66,3 +66,5 @@
 | **git 历史清除 + 远端 force-push** | ⏳ **等待用户确认时机** | 见下方方案；需与并行会话协调 |
 
 **当前门禁**: `bun test tests/` 100 pass / 0 fail；`npm run test:vitest` 14 pass / 0 fail。
+
+| **git 历史清除 + 远端 force-push** | ✅ 完成（2026-09-17） | 远端 main=6bcb025，全历史完整 key 零命中；备份 bundle 在仓外 | 备份保留至轮换确认；其他克隆需重新克隆 |
