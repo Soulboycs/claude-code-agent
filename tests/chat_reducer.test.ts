@@ -171,4 +171,30 @@ describe('Chat State Machine — TDD: 流式输出与事件顺序性 (Streaming 
     expect(state.messages.length).toBe(4) // 2 previous + 2 new
     expect(state.activeTurnId).toBe('turn-005')
   })
+
+  it('resets state completely on clear action', () => {
+    state = startUserTurn(state, 'Clear me', 'turn-clear')
+    expect(state.messages.length).toBe(2)
+    state = chatReducer(state, { type: 'clear' })
+    expect(state.messages.length).toBe(0)
+    expect(state.activeTurnId).toBeNull()
+  })
+
+  it('preserves error message in assistant content on status_change error', () => {
+    state = startUserTurn(state, 'Fail me', 'turn-err-1')
+    state = chatReducer(state, { type: 'status_change', status: 'error', message: 'API rate limit exceeded' })
+    expect(state.messages[1].content).toBe('[Error: API rate limit exceeded]')
+    expect(state.messages[1].isStreaming).toBe(false)
+    expect(state.activeTurnId).toBeNull()
+  })
+
+  it('attaches late error event to last assistant message even after activeTurnId is null', () => {
+    state = startUserTurn(state, 'Fail late', 'turn-err-2')
+    // First closed by status_change
+    state = chatReducer(state, { type: 'status_change', status: 'error' })
+    expect(state.activeTurnId).toBeNull()
+    // Then late error event arrives
+    state = chatReducer(state, { type: 'error', message: 'Network disconnected' })
+    expect(state.messages[1].content).toContain('[Error: Network disconnected]')
+  })
 })
