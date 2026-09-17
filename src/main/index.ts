@@ -87,17 +87,13 @@ async function scanDirectory(dirPath: string, maxDepth = 3, currentDepth = 0): P
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
+    title: 'NEXUS AGENT',
     width: 1280,
     height: 850,
     minWidth: 900,
     minHeight: 600,
     show: true,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#121316',
-      symbolColor: '#f3f4f6',
-      height: 38
-    },
+    center: true,
     backgroundColor: '#121316',
     webPreferences: {
       preload: existsSync(join(__dirname, '../preload/index.mjs'))
@@ -110,6 +106,7 @@ function createWindow(): void {
   })
 
   mainWindow.show()
+  mainWindow.focus()
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -167,9 +164,9 @@ async function ensureSidecarServer(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  await ensureSidecarServer()
-  await initAgent()
   createWindow()
+  await initAgent()
+  ensureSidecarServer().catch((e) => console.warn('[Sidecar] error:', e))
 
   // IPC: Agent Control
   ipcMain.handle('agent:send-message', async (_, prompt: string, workspacePath?: string) => {
