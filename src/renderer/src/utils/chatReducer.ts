@@ -139,7 +139,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         if (!activeId) return state // Already finalized — completely idempotent
         return {
           messages: state.messages.map((msg) =>
-            msg.id === activeId ? { ...msg, isStreaming: false } : msg
+            msg.id === activeId
+              ? {
+                  ...msg,
+                  content:
+                    action.status === 'error' && action.message && !msg.content
+                      ? `[Error: ${action.message}]`
+                      : msg.content,
+                  isStreaming: false
+                }
+              : msg
           ),
           activeTurnId: null
         }
@@ -148,14 +157,19 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     }
 
     case 'error': {
-      if (!activeId) return state
+      const targetId =
+        activeId ||
+        (state.messages.length > 0
+          ? state.messages[state.messages.length - 1].id
+          : null)
+      if (!targetId) return state
       return {
         messages: state.messages.map((msg) =>
-          msg.id === activeId
+          msg.id === targetId
             ? {
                 ...msg,
                 content: msg.content
-                  ? `${msg.content}\n\n[Error: ${action.message}]`
+                  ? (msg.content.includes(action.message) ? msg.content : `${msg.content}\n\n[Error: ${action.message}]`)
                   : `[Error: ${action.message}]`,
                 isStreaming: false
               }

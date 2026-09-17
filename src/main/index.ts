@@ -198,13 +198,23 @@ app.whenReady().then(async () => {
 
   // IPC: Agent Control
   ipcMain.handle('agent:send-message', async (_, prompt: string, workspacePath?: string) => {
-    if (!agentEngine) return
+    logger.info('IPC', `Received agent:send-message: "${prompt.slice(0, 80)}"`)
+    if (!agentEngine) {
+      logger.error('IPC', 'agentEngine is not initialized')
+      return
+    }
     if (workspacePath && workspacePath !== currentWorkspace) {
       currentWorkspace = workspacePath
       agentEngine.setWorkspaceRoot(currentWorkspace)
     }
     agentEngine.run(prompt).catch((err) => {
-      console.error('Agent run error:', err)
+      logger.error('MainProcess', `Agent run error: ${err?.message || String(err)}`, err)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('agent:event', {
+          type: 'error',
+          message: err?.message || String(err)
+        })
+      }
     })
   })
 
