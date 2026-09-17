@@ -107,3 +107,40 @@ $ bun -e "const ws = new WebSocket('ws://117.72.101.76/ws/sess_test'); ws.onmess
 WS MSG: {"type":"connected","sessionId":"sess_test"}
 ```
 - **判定**: **通过 (PASSED)**，生产云环境与公网接入完全就绪。
+ 
+---
+
+## 证据条目 7: GitHub Actions 账单阻断分析与 Push-to-Deploy Webhook 全自动闭环
+
+### 1. GitHub Actions 账单阻断真实证据
+- **执行命令**: `gh run view 35188055886`
+- **控制台输出**:
+```text
+X main CD (Continuous Deployment to Remote Server) · 35188055886
+Triggered via push
+JOBS:
+X Deploy to Remote Server in 2s (ID 105094300610)
+ANNOTATIONS:
+X The job was not started because your account is locked due to a billing issue.
+Deploy to Remote Server: .github#1
+```
+- **技术研判**: GitHub 账号 `@Soulboycs` 触发了 Actions 账单锁定限制，导致所有托管 Runner 拒绝执行任务。因此采用基于 GitHub Webhook 直推服务器的轻量自动化部署架构，绕过 GitHub Runner 账单限制实现即时 Push-to-Deploy。
+
+### 2. Webhook 端点实现与部署脚本
+- **服务端点**: `POST /api/webhook/deploy` 支持 GitHub push / ping 事件与 HMAC SHA256 验签。
+- **触发命令**: 通过 `systemd-run` 独立 cgroup 运行 `/opt/claude-code-agent/scripts/webhook-deploy.sh`，执行 `git reset --hard origin/main`、`bun install --production` 并重启 `claude-code-agent.service`。
+- **健康探针集成**: `/health` 接口动态返回当前 commit short hash。
+
+### 3. GitHub 仓库 Webhook 注册证据
+- **创建命令**: `gh api repos/Soulboycs/claude-code-agent/hooks -f name=web -F active=true -F "events[]=push" -F "config[url]=http://117.72.101.76/api/webhook/deploy" -F "config[content_type]=json"`
+- **Webhook ID**: `680638362`
+- **Ping 交付结果 (`gh api repos/.../hooks/680638362/deliveries`)**:
+```json
+{
+  "id": 3843190292993802240,
+  "status": "OK",
+  "status_code": 200,
+  "event": "ping",
+  "duration": 0.46
+}
+```

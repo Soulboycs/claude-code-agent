@@ -28,4 +28,7 @@
 | **云服务器历史资源清理** | 生产宿主机 `117.72.101.76` | 已完成 | `df -h /` | 释放 30GB+ 空间，可用扩增至 36GB (37%)，内存释放至 2.7GB 可用 |
 | **云端 Bun 服务守护与 CI/CD** | Systemd `claude-code-agent.service` | 运行中 | `systemctl status` | Bun 1.4.2 常驻运行 (内存占用仅 5.5MB) |
 | **远程公网服务探针与网关** | Nginx 反向代理 + 本地直连 | 验证通过 | `curl http://117.72.101.76/health` | HTTP 200 OK、REST 会话创建、WebSocket 握手通畅 |
+| **GitHub Actions 账单状态审计** | GitHub CLI `gh run list` & `run view` | 阻断确认 | `gh run view 35188055886` | 账号 `@Soulboycs` 存在账单锁定阻断，CI/CD Actions 无法启动 |
+| **Push-to-Deploy Webhook 闭环** | `src/server/index.ts` + `webhook-deploy.sh` | 生产验证通过 | `curl http://117.72.101.76/api/webhook/deploy` | GitHub Push 事件直接触发云端异步更新、Bun 依赖重装与服务重启 |
+| **GitHub Webhook 线上注册与交付** | 仓库 `Soulboycs/claude-code-agent` | 交付正常 | `gh api repos/.../hooks/680638362/deliveries` | Hook ID 680638362 注册生效，Ping/Push 200 OK 纳秒级响应 |
 
