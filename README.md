@@ -4,6 +4,7 @@
 > 1:1 技术架构深度对齐 Claude Code (`cc-haha`)，基于 **Bun**、**Electron** 与 **React 19** 驱动的生产级自主编程智能体工作台。
 
 [![CI/CD Push-to-Deploy](https://img.shields.io/badge/CI%2FCD-Push--to--Deploy-brightgreen)](https://github.com/Soulboycs/nexus-agent)
+[![Release](https://img.shields.io/badge/Release-v0.1.0--production-orange)](https://github.com/Soulboycs/nexus-agent)
 [![Runtime](https://img.shields.io/badge/Runtime-Bun%201.4.2%20%7C%20Node%2022-blue)](https://bun.sh)
 [![Architecture](https://img.shields.io/badge/Architecture-1%3A1%20Claude%20Code-purple)](docs/SPEC.md)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
