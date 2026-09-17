@@ -5,7 +5,10 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
-  Loader2
+  Loader2,
+  ThumbsUp,
+  ThumbsDown,
+  Copy
 } from 'lucide-react'
 import { ChatMessage } from '@shared/types'
 import { StreamingText } from './StreamingText'
@@ -228,6 +231,26 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
                       content={msg.content || ''}
                       isStreaming={!!msg.isStreaming}
                     />
+                  </div>
+                )}
+
+                {/* Footer Feedback Actions (1:1 with Antigravity) */}
+                {!msg.isStreaming && msg.content && (
+                  <div className="flex items-center justify-end gap-1 pt-1 text-neutral-400 select-none">
+                    <button type="button" className="p-1 hover:text-neutral-600 rounded hover:bg-neutral-100 transition-colors" title="Good response">
+                      <ThumbsUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button type="button" className="p-1 hover:text-neutral-600 rounded hover:bg-neutral-100 transition-colors" title="Bad response">
+                      <ThumbsDown className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(msg.content)}
+                      className="p-1 hover:text-neutral-600 rounded hover:bg-neutral-100 transition-colors"
+                      title="Copy message"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 )}
               </div>

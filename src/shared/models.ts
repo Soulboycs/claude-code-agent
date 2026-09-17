@@ -25,6 +25,7 @@ export const MODEL_CATALOG: ModelDef[] = [
   { id: 'claude-opus-4-5', name: 'Claude Opus 4.5', provider: 'anthropic', speed: 'slow', intelligence: 'high', thinking: true },
   { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5', provider: 'anthropic', speed: 'fast', intelligence: 'medium' },
   // Gemini
+  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash Medium', provider: 'gemini', speed: 'fast', intelligence: 'medium' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'gemini', speed: 'fast', intelligence: 'medium' },
   { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'gemini', speed: 'medium', intelligence: 'high' },
   { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'gemini', speed: 'medium', intelligence: 'high', thinking: true },

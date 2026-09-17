@@ -100,7 +100,7 @@ export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
                 disabled={!canSend}
                 className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
                   canSend
-                    ? 'bg-neutral-900 hover:bg-black text-white shadow-xs'
+                    ? 'bg-[#007aff] hover:bg-blue-600 text-white shadow-xs'
                     : 'bg-neutral-100 text-neutral-300 cursor-not-allowed'
                 }`}
                 title="Send message"

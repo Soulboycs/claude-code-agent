@@ -15,7 +15,8 @@ import {
   createInitialChatState,
   chatReducer,
   ChatState,
-  startUserTurn
+  startUserTurn,
+  normalizeMessageBlocks
 } from '../src/renderer/src/utils/chatReducer'
 import { AgentEvent, ToolCallPayload, ToolResultPayload } from '../src/shared/types'
 
@@ -198,3 +199,109 @@ describe('Chat State Machine — TDD: 流式输出与事件顺序性 (Streaming 
     expect(state.messages[1].content).toContain('[Error: Network disconnected]')
   })
 })
+
+describe('Chat State Machine — MessageBlock 有序时序流水线 (Interleaved Blocks)', () => {
+  let state: ChatState
+
+  beforeEach(() => {
+    state = createInitialChatState()
+  })
+
+  it('interleaves text, tools, and subsequent text into an ordered blocks array', () => {
+    state = startUserTurn(state, '排查跨账号串线', 'turn-blk-1')
+
+    // 1. First text paragraph
+    state = chatReducer(state, { type: 'message_delta', delta: '能理解，属于跨账号数据串线。\n' })
+    state = chatReducer(state, { type: 'message_delta', delta: '先找到具体串线点，再修。' })
+
+    // 2. Tool 1 start & complete
+    state = chatReducer(state, {
+      type: 'tool_call_start',
+      toolCall: {
+        id: 'tc-001',
+        name: 'view_file',
+        arguments: { filePath: 'src/auth/session.ts', toolAction: '调查跨账户数据泄漏并查找用户缓存逻辑' }
+      }
+    })
+    state = chatReducer(state, {
+      type: 'tool_call_complete',
+      result: {
+        toolCallId: 'tc-001',
+        name: 'view_file',
+        output: 'session code...',
+        isError: false
+      }
+    })
+
+    // 3. Second text paragraph
+    state = chatReducer(state, { type: 'message_delta', delta: '从现在的证据看，更可能是身份合并逻辑问题。' })
+
+    // 4. Tool 2 start
+    state = chatReducer(state, {
+      type: 'tool_call_start',
+      toolCall: {
+        id: 'tc-002',
+        name: 'run_command',
+        arguments: { command: 'bun test', toolAction: '排查跨账户数据泄漏原因' }
+      }
+    })
+
+    const asst = state.messages[1]
+    expect(asst.blocks).toBeDefined()
+    expect(asst.blocks!.length).toBe(4)
+
+    // Block 0: text
+    expect(asst.blocks![0].type).toBe('text')
+    if (asst.blocks![0].type === 'text') {
+      expect(asst.blocks![0].content).toBe('能理解，属于跨账号数据串线。\n先找到具体串线点，再修。')
+    }
+
+    // Block 1: tool (completed)
+    expect(asst.blocks![1].type).toBe('tool')
+    if (asst.blocks![1].type === 'tool') {
+      expect(asst.blocks![1].id).toBe('tc-001')
+      expect(asst.blocks![1].status).toBe('completed')
+      expect(asst.blocks![1].toolCall.arguments.toolAction).toBe('调查跨账户数据泄漏并查找用户缓存逻辑')
+    }
+
+    // Block 2: text
+    expect(asst.blocks![2].type).toBe('text')
+    if (asst.blocks![2].type === 'text') {
+      expect(asst.blocks![2].content).toBe('从现在的证据看，更可能是身份合并逻辑问题。')
+    }
+
+    // Block 3: tool (running)
+    expect(asst.blocks![3].type).toBe('tool')
+    if (asst.blocks![3].type === 'tool') {
+      expect(asst.blocks![3].id).toBe('tc-002')
+      expect(asst.blocks![3].status).toBe('running')
+    }
+
+    // Dual-track verification: asst.content and asst.toolCalls are also preserved
+    expect(asst.content).toContain('先找到具体串线点，再修。从现在的证据看')
+    expect(asst.toolCalls?.length).toBe(2)
+  })
+
+  it('normalizes legacy message without blocks into ordered blocks seamlessly', () => {
+    const legacyMsg: any = {
+      id: 'legacy-001',
+      role: 'assistant',
+      thinking: 'Thinking about the issue...',
+      toolCalls: [
+        { id: 'call-1', name: 'view_file', arguments: { filePath: 'foo.ts' } }
+      ],
+      toolResults: [
+        { toolCallId: 'call-1', name: 'view_file', output: 'content', isError: false }
+      ],
+      content: 'Here is the diagnosis.',
+      timestamp: 12345
+    }
+
+    const blocks = normalizeMessageBlocks(legacyMsg)
+    expect(blocks.length).toBe(3)
+    expect(blocks[0].type).toBe('thinking')
+    expect(blocks[1].type).toBe('tool')
+    expect(blocks[2].type).toBe('text')
+  })
+})
+

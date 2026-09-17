@@ -130,6 +130,7 @@ function createWindow(): void {
     }
   })
 
+  mainWindow.removeMenu()
   mainWindow.setMenu(null)
   mainWindow.setMenuBarVisibility(false)
   mainWindow.show()

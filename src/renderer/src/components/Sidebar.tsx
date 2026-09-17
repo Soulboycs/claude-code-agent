@@ -15,6 +15,7 @@ export interface ConversationItem {
   id: string
   title: string
   timeAgo: string
+  hasDot?: boolean
   projectId: string
 }
 
@@ -43,9 +44,16 @@ const DEFAULT_PROJECTS: ProjectGroup[] = [
     isExpanded: true,
     conversations: [
       {
+        id: 'conv_0',
+        title: 'Interface Redesign Requ...',
+        timeAgo: '',
+        hasDot: true,
+        projectId: 'proj_agent'
+      },
+      {
         id: 'conv_1',
-        title: 'AI Agent Reference Proj...',
-        timeAgo: '7m',
+        title: 'AI Agent Reference Pro...',
+        timeAgo: 'now',
         projectId: 'proj_agent'
       },
       {
@@ -64,7 +72,7 @@ const DEFAULT_PROJECTS: ProjectGroup[] = [
       {
         id: 'conv_3',
         title: '抓取 Paseo 代码',
-        timeAgo: '11h',
+        timeAgo: '12h',
         projectId: 'proj_paseo'
       }
     ]
@@ -84,7 +92,7 @@ const DEFAULT_PROJECTS: ProjectGroup[] = [
   },
   {
     id: 'proj_evidence',
-    name: 'evidence driven en...',
+    name: 'evidence-driven-en...',
     isExpanded: true,
     conversations: [
       {
@@ -213,8 +221,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         title={conv.title}
                       >
                         <span className="truncate mr-2">{conv.title}</span>
-                        {isSelected ? (
-                          <span className="w-2.5 h-2.5 border border-neutral-500 border-t-transparent rounded-full animate-spin shrink-0 mr-1" />
+                        {conv.hasDot ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#007aff] shrink-0 mr-1" />
+                        ) : isSelected ? (
+                          <span className="text-[10px] text-neutral-400 shrink-0 font-mono">now</span>
                         ) : (
                           <span className="text-[10px] text-neutral-400 shrink-0 font-mono">
                             {conv.timeAgo}

@@ -23,7 +23,7 @@ export default function App() {
   const [status, setStatus] = useState<AgentStatus>('idle')
   const [, setStatusMessage] = useState<string>('')
   const [promptInput, setPromptInput] = useState<string>('')
-  const [currentModelId, setCurrentModelId] = useState<string>('')
+  const [currentModelId, setCurrentModelId] = useState<string>('gemini-3.8-flash')
 
   // Projects & Navigation state (Matching Antigravity screenshot)
   const [currentProject, setCurrentProject] = useState<string>('Agent')

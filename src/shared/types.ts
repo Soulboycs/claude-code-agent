@@ -45,6 +45,17 @@ export type AgentEvent =
   | { type: 'terminal_output'; chunk: string }
   | { type: 'error'; message: string; details?: string }
 
+export type MessageBlock =
+  | { type: 'text'; id: string; content: string }
+  | { type: 'thinking'; id: string; content: string }
+  | {
+      type: 'tool'
+      id: string
+      toolCall: ToolCallPayload
+      result?: ToolResultPayload
+      status: 'running' | 'completed' | 'error'
+    }
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
@@ -52,6 +63,7 @@ export interface ChatMessage {
   thinking?: string
   toolCalls?: ToolCallPayload[]
   toolResults?: ToolResultPayload[]
+  blocks?: MessageBlock[]
   timestamp: number
   isStreaming?: boolean
 }
