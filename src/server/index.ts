@@ -9,6 +9,81 @@ import { ProviderConfig } from '../shared/types'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
+import crypto from 'crypto'
+
+export function getGitCommit(): string {
+  try {
+    const gitDir = path.join(process.cwd(), '.git')
+    if (fs.existsSync(gitDir)) {
+      const head = fs.readFileSync(path.join(gitDir, 'HEAD'), 'utf-8').trim()
+      if (head.startsWith('ref: ')) {
+        const refPath = head.slice(5)
+        const commitFile = path.join(gitDir, refPath)
+        if (fs.existsSync(commitFile)) {
+          return fs.readFileSync(commitFile, 'utf-8').trim().slice(0, 7)
+        }
+        const packedRefs = path.join(gitDir, 'packed-refs')
+        if (fs.existsSync(packedRefs)) {
+          const lines = fs.readFileSync(packedRefs, 'utf-8').split('\n')
+          for (const line of lines) {
+            if (line.endsWith(refPath)) {
+              return line.split(' ')[0].slice(0, 7)
+            }
+          }
+        }
+      } else {
+        return head.slice(0, 7)
+      }
+    }
+  } catch {}
+  return process.env.GIT_COMMIT || 'development'
+}
+
+export function verifyGitHubSignature(secret: string, signatureHeader: string | null, rawBody: string): boolean {
+  if (!secret) return true
+  if (!signatureHeader) return false
+  const hmac = crypto.createHmac('sha256', secret)
+  const calculated = 'sha256=' + hmac.update(rawBody).digest('hex')
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signatureHeader), Buffer.from(calculated))
+  } catch {
+    return false
+  }
+}
+
+export function triggerDeployTask(branch: string, commit?: string) {
+  console.log(`[Webhook] Triggering automated deployment for ${branch} (${commit || 'latest'})...`)
+  const deployScript = path.join(process.cwd(), 'scripts', 'webhook-deploy.sh')
+
+  if (os.platform() === 'linux') {
+    const bashCmd = fs.existsSync(deployScript)
+      ? `/bin/bash "${deployScript}"`
+      : `cd /opt/claude-code-agent && git fetch origin main && git reset --hard origin/main && /usr/local/bin/bun install --production && systemctl restart claude-code-agent.service`
+
+    if (fs.existsSync('/usr/bin/systemd-run')) {
+      const unitName = `claude-deploy-${Date.now()}`
+      try {
+        Bun.spawn(['/usr/bin/systemd-run', `--unit=${unitName}`, '/bin/bash', '-c', bashCmd], {
+          stdout: 'inherit',
+          stderr: 'inherit',
+        })
+      } catch (err) {
+        console.error('[Webhook] systemd-run error:', err)
+      }
+    } else {
+      try {
+        Bun.spawn(['/bin/bash', '-c', `nohup bash -c '${bashCmd}' > /var/log/claude-code-agent-deploy.log 2>&1 &`], {
+          stdout: 'ignore',
+          stderr: 'ignore',
+        })
+      } catch (err) {
+        console.error('[Webhook] spawn error:', err)
+      }
+    }
+  } else {
+    console.log('[Webhook] Deployment trigger simulated on non-Linux platform')
+  }
+}
 
 export interface WebSocketData {
   sessionId: string
@@ -73,6 +148,7 @@ export function startServer(port = 3456, host = process.env.SERVER_HOST || '0.0.
           status: 'ok',
           runtime: 'bun',
           version: Bun.version,
+          commit: getGitCommit(),
           timestamp: new Date().toISOString(),
         })
       }
@@ -84,14 +160,14 @@ export function startServer(port = 3456, host = process.env.SERVER_HOST || '0.0.
           headers: {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-GitHub-Event, X-Hub-Signature-256',
           },
         })
       }
 
       const corsHeaders = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-GitHub-Event, X-Hub-Signature-256',
       }
 
       // 3. WebSocket Upgrade (/ws/:sessionId)
@@ -142,6 +218,64 @@ export function startServer(port = 3456, host = process.env.SERVER_HOST || '0.0.
         const body = (await req.json()) as ProviderConfig
         saveProviderConfig(body)
         return Response.json({ success: true }, { headers: corsHeaders })
+      }
+
+      // 6. Push-to-Deploy GitHub Webhook
+      if (url.pathname === '/api/webhook/deploy') {
+        if (req.method === 'GET') {
+          return Response.json({
+            status: 'ready',
+            endpoint: '/api/webhook/deploy',
+            targetBranch: 'refs/heads/main',
+            commit: getGitCommit(),
+          }, { headers: corsHeaders })
+        }
+
+        if (req.method === 'POST') {
+          const rawBody = await req.text()
+          const secret = process.env.WEBHOOK_SECRET || process.env.DEPLOY_WEBHOOK_SECRET || ''
+
+          if (secret) {
+            const sig = req.headers.get('x-hub-signature-256')
+            if (!verifyGitHubSignature(secret, sig, rawBody)) {
+              return Response.json({ error: 'Invalid webhook signature' }, { status: 401, headers: corsHeaders })
+            }
+          }
+
+          const ghEvent = req.headers.get('x-github-event')
+          if (ghEvent === 'ping') {
+            return Response.json({ status: 'pong', message: 'GitHub webhook ping received' }, { headers: corsHeaders })
+          }
+
+          let payload: any = {}
+          try {
+            payload = JSON.parse(rawBody)
+          } catch {
+            try {
+              const params = new URLSearchParams(rawBody)
+              const rawPayload = params.get('payload')
+              if (rawPayload) payload = JSON.parse(rawPayload)
+            } catch {}
+          }
+
+          const ref = payload.ref || ''
+          if (ref === 'refs/heads/main' || !ref) {
+            const commitSha = payload.after || payload.head_commit?.id || 'latest'
+            triggerDeployTask(ref || 'refs/heads/main', commitSha)
+
+            return Response.json({
+              success: true,
+              message: 'Automated deployment triggered successfully for refs/heads/main',
+              ref: ref || 'refs/heads/main',
+              commit: commitSha,
+            }, { headers: corsHeaders })
+          }
+
+          return Response.json({
+            success: false,
+            message: `Ignored push event for ref: ${ref} (only refs/heads/main triggers deployment)`,
+          }, { headers: corsHeaders })
+        }
       }
 
       return new Response('Not Found', { status: 404, headers: corsHeaders })

@@ -76,4 +76,63 @@ describe('Bun.serve Server & WebSocket Gateway Tests', () => {
     expect(types).toContain('session_state')
     expect(types).toContain('pong')
   })
+
+  it('GET /api/webhook/deploy returns ready status and commit', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/webhook/deploy`)
+    expect(res.status).toBe(200)
+    const data = (await res.json()) as any
+    expect(data.status).toBe('ready')
+    expect(data.endpoint).toBe('/api/webhook/deploy')
+    expect(data.targetBranch).toBe('refs/heads/main')
+  })
+
+  it('POST /api/webhook/deploy handles ping event', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/webhook/deploy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GitHub-Event': 'ping',
+      },
+      body: JSON.stringify({ zen: 'Keep it logically awesome.' }),
+    })
+    expect(res.status).toBe(200)
+    const data = (await res.json()) as any
+    expect(data.status).toBe('pong')
+  })
+
+  it('POST /api/webhook/deploy triggers deployment on refs/heads/main', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/webhook/deploy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GitHub-Event': 'push',
+      },
+      body: JSON.stringify({
+        ref: 'refs/heads/main',
+        after: 'abcdef1234567890',
+        repository: { full_name: 'Soulboycs/claude-code-agent' },
+      }),
+    })
+    expect(res.status).toBe(200)
+    const data = (await res.json()) as any
+    expect(data.success).toBe(true)
+    expect(data.commit).toBe('abcdef1234567890')
+  })
+
+  it('POST /api/webhook/deploy ignores non-main branches', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/api/webhook/deploy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GitHub-Event': 'push',
+      },
+      body: JSON.stringify({
+        ref: 'refs/heads/feature-branch',
+        after: '1111111111111111',
+      }),
+    })
+    expect(res.status).toBe(200)
+    const data = (await res.json()) as any
+    expect(data.success).toBe(false)
+  })
 })
