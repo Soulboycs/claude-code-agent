@@ -8,6 +8,7 @@ dist/
 dist-electron/
 electron-dist/
 build-artifacts/
+release/
 
 # Logs & temp
 *.log

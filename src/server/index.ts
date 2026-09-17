@@ -165,8 +165,25 @@ export function startServer(port = 3456, host = process.env.SERVER_HOST || '0.0.
         }
       }
 
-      // 1.2 Direct Package Download Endpoint (/download/latest)
-      if (url.pathname === '/download/latest' || url.pathname === '/downloads/nexus-agent-latest.zip') {
+      // 1.2 Desktop Windows Client Download (/download/desktop or /downloads/NEXUS-AGENT-Windows-x64.zip)
+      if (url.pathname === '/download/desktop' || url.pathname === '/downloads/NEXUS-AGENT-Windows-x64.zip') {
+        const localZip = path.join(process.cwd(), 'public', 'downloads', 'NEXUS-AGENT-Windows-x64.zip')
+        if (fs.existsSync(localZip)) {
+          const file = Bun.file(localZip)
+          return new Response(file, {
+            headers: {
+              'Content-Type': 'application/zip',
+              'Content-Disposition': 'attachment; filename="NEXUS-AGENT-Windows-x64.zip"',
+              'Content-Length': String(fs.statSync(localZip).size),
+            },
+          })
+        }
+        // Fallback to source bundle if desktop client not available
+        return Response.redirect('/download/source', 302)
+      }
+
+      // 1.3 Source & CLI Release Download Endpoint (/download/source or /download/latest)
+      if (url.pathname === '/download/source' || url.pathname === '/download/latest' || url.pathname === '/downloads/nexus-agent-latest.zip') {
         const localZip = path.join(process.cwd(), 'public', 'downloads', 'nexus-agent-latest.zip')
         if (fs.existsSync(localZip)) {
           const file = Bun.file(localZip)
@@ -174,11 +191,27 @@ export function startServer(port = 3456, host = process.env.SERVER_HOST || '0.0.
             headers: {
               'Content-Type': 'application/zip',
               'Content-Disposition': `attachment; filename="nexus-agent-${getGitCommit()}.zip"`,
+              'Content-Length': String(fs.statSync(localZip).size),
             },
           })
         }
         // Fallback to GitHub Release Archive
         return Response.redirect('https://github.com/Soulboycs/nexus-agent/archive/refs/heads/main.zip', 302)
+      }
+
+      // 1.4 Generic Downloads File Serving
+      if (url.pathname.startsWith('/downloads/')) {
+        const fileName = path.basename(url.pathname)
+        const filePath = path.join(process.cwd(), 'public', 'downloads', fileName)
+        if (fs.existsSync(filePath)) {
+          return new Response(Bun.file(filePath), {
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'Content-Disposition': `attachment; filename="${fileName}"`,
+              'Content-Length': String(fs.statSync(filePath).size),
+            },
+          })
+        }
       }
 
       // 2. CORS Preflight

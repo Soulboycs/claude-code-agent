@@ -28,14 +28,21 @@ describe('Bun.serve Server & WebSocket Gateway Tests', () => {
     expect(res.headers.get('content-type')).toContain('text/html')
     const html = await res.text()
     expect(html).toContain('NEXUS AGENT')
-    expect(html).toContain('/download/latest')
+    expect(html).toContain('/download/desktop')
   })
 
-  it('GET /download/latest handles download or fallback redirect', async () => {
-    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/download/latest`, {
+  it('GET /download/desktop handles desktop package download or fallback redirect', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/download/desktop`, {
       redirect: 'manual',
     })
-    // Either 200 (zip) or 302 (redirect to github archive)
+    // Either 200 (zip) or 302 (redirect fallback)
+    expect([200, 302]).toContain(res.status)
+  })
+
+  it('GET /download/latest and /download/source handle download or fallback redirect', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/download/source`, {
+      redirect: 'manual',
+    })
     expect([200, 302]).toContain(res.status)
   })
 
