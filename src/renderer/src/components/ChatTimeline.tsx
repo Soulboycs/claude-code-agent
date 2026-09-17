@@ -10,14 +10,48 @@ import {
 import { ChatMessage } from '@shared/types'
 import { StreamingText } from './StreamingText'
 
-interface ChatTimelineProps {
-  messages: ChatMessage[]
+function getToolLabel(name: string, args: any, isRunning: boolean) {
+  const path = args?.filePath || args?.path || args?.AbsolutePath || ''
+  const filename = path ? String(path).split(/[/\\]/).pop() : ''
+  const isTs = filename ? filename.endsWith('.ts') || filename.endsWith('.tsx') : false
+
+  if (name === 'view_file') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-neutral-600">
+        <span>{isRunning ? 'Exploring file' : 'Analyzed'}</span>
+        {filename && (
+          <span className="flex items-center gap-1">
+            {isTs && <span className="bg-blue-100 text-blue-700 text-[9px] font-bold px-1 py-0.2 rounded font-mono">TS</span>}
+            <span className="font-mono text-neutral-800 text-[11px]">{filename}</span>
+          </span>
+        )}
+      </div>
+    )
+  }
+  if (name === 'replace_file_content' || name === 'write_to_file') {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-neutral-600">
+        <span>Edited</span>
+        {filename && (
+          <span className="flex items-center gap-1">
+            {isTs && <span className="bg-blue-100 text-blue-700 text-[9px] font-bold px-1 py-0.2 rounded font-mono">TS</span>}
+            <span className="font-mono text-neutral-800 text-[11px]">{filename}</span>
+            <span className="text-emerald-600 font-mono text-[10px] font-medium">+1</span>
+            <span className="text-rose-500 font-mono text-[10px] font-medium">-1</span>
+          </span>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-neutral-600">
+      <span className="font-mono font-medium text-neutral-800 text-[11px]">{name}</span>
+    </div>
+  )
 }
 
-function extractUserTitle(content: string): string {
-  if (!content) return 'User Request'
-  const firstLine = content.trim().split('\n')[0].trim()
-  return firstLine.length > 60 ? `${firstLine.slice(0, 60)}...` : firstLine
+interface ChatTimelineProps {
+  messages: ChatMessage[]
 }
 
 export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
@@ -45,21 +79,21 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
           <div key={msg.id} className="space-y-4">
             {/* User Request Card - 1:1 matching Antigravity light card */}
             {msg.role === 'user' && (
-              <div className="bg-[#f9fafb] border border-neutral-200/90 rounded-xl p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03)] text-neutral-900 transition-all">
-                <div className="text-sm font-semibold text-neutral-900 mb-2 select-text">
-                  {extractUserTitle(msg.content)}
+              <div className="bg-white border border-neutral-200/80 rounded-2xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] text-neutral-900 transition-all">
+                <div className="text-sm font-normal text-neutral-800 leading-relaxed select-text">
+                  {msg.content}
                 </div>
-                {msg.content.trim().split('\n').length > 1 && (
-                  <div className="font-mono text-xs text-neutral-700 whitespace-pre-wrap leading-relaxed select-text pt-1 border-t border-neutral-200/60">
-                    {msg.content}
-                  </div>
-                )}
               </div>
             )}
 
             {/* Assistant Message - Clean White Canvas Typography */}
             {msg.role === 'assistant' && (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
+                <div className="text-[11px] text-neutral-400 flex items-center gap-1 font-normal select-none">
+                  <span>Response</span>
+                  <ChevronRight className="w-3 h-3 text-neutral-400" />
+                </div>
+
                 {/* Thinking block if present */}
                 {msg.thinking && (
                   <div className="border border-neutral-200/90 bg-[#fbfbfb] rounded-lg overflow-hidden text-xs">
@@ -119,10 +153,7 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
                               ) : (
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                               )}
-                              <span className="font-mono font-medium text-neutral-800">{tc.name}</span>
-                              <span className="text-[10px] text-neutral-400">
-                                {isRunning ? 'Executing...' : result?.isError ? 'Failed' : 'Completed'}
-                              </span>
+                              {getToolLabel(tc.name, tc.arguments, !!isRunning)}
                             </div>
                             {isExpanded ? (
                               <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />

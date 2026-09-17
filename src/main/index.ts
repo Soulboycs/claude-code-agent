@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { join } from 'path'
 import fs from 'fs/promises'
 import { existsSync } from 'fs'
@@ -112,7 +112,14 @@ function createWindow(): void {
     minHeight: 600,
     show: true,
     center: true,
-    backgroundColor: '#121316',
+    autoHideMenuBar: true,
+    backgroundColor: '#ffffff',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#ffffff',
+      symbolColor: '#4b5563',
+      height: 28
+    },
     webPreferences: {
       preload: existsSync(join(__dirname, '../preload/index.mjs'))
         ? join(__dirname, '../preload/index.mjs')
@@ -123,6 +130,8 @@ function createWindow(): void {
     }
   })
 
+  mainWindow.setMenu(null)
+  mainWindow.setMenuBarVisibility(false)
   mainWindow.show()
   mainWindow.focus()
 
@@ -192,6 +201,7 @@ async function ensureSidecarServer(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null)
   createWindow()
   await initAgent()
   ensureSidecarServer().catch((e) => console.warn('[Sidecar] error:', e))

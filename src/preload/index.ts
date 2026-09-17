@@ -8,6 +8,9 @@ const api: IElectronAPI = {
   abortAgent: () => {
     return ipcRenderer.invoke('agent:abort')
   },
+  abort: () => {
+    return ipcRenderer.invoke('agent:abort')
+  },
   respondApproval: (requestId: string, approved: boolean, reason?: string) => {
     return ipcRenderer.invoke('agent:respond-approval', requestId, approved, reason)
   },

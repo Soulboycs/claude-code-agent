@@ -80,6 +80,7 @@ export interface IElectronAPI {
   // Agent Control
   sendMessage: (prompt: string, workspacePath?: string) => Promise<void>
   abortAgent: () => Promise<void>
+  abort?: () => Promise<void>
   respondApproval: (requestId: string, approved: boolean, reason?: string) => Promise<void>
   switchModel: (modelId: string) => Promise<void>
 

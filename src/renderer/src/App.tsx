@@ -12,7 +12,7 @@ import { ApprovalCard } from './components/ApprovalCard'
 import { TerminalView } from './components/TerminalView'
 import { SettingsModal } from './components/SettingsModal'
 import { FloatingInputDock } from './components/FloatingInputDock'
-import { Sparkles, Cloud } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { createInitialChatState, chatReducer } from './utils/chatReducer'
 import { createScrollFollower, ScrollFollower } from './utils/scrollFollower'
 
@@ -175,6 +175,15 @@ export default function App() {
     scrollFollowerRef.current?.forceFollow()
   }
 
+  const handleAbort = async () => {
+    try {
+      await window.electronAPI?.abort?.()
+      dispatchChat({ type: 'status_change', status: 'idle' })
+    } catch (e) {
+      console.error('Failed to abort:', e)
+    }
+  }
+
   const handleSelectConversation = (id: string, title: string, projectName: string) => {
     setCurrentConversationId(id)
     setCurrentConversationTitle(title)
@@ -255,26 +264,13 @@ export default function App() {
             )}
           </div>
 
-          {/* Right Floating Rail Badges (Origami Bird / Cloud status) */}
-          <div className="absolute right-6 top-1/3 flex flex-col items-center gap-3 select-none z-20 pointer-events-auto">
-            <button
-              type="button"
-              className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md hover:shadow-lg transition-all hover:scale-105"
-              title="Antigravity Agent"
-            >
-              <Sparkles className="w-4 h-4 fill-white" />
-            </button>
-            <div className="p-1.5 rounded-lg bg-white/90 border border-neutral-200/80 shadow-xs flex items-center justify-center text-neutral-400">
-              <Cloud className="w-3.5 h-3.5 text-blue-500" />
-            </div>
-          </div>
-
           {/* Bottom Floating Input Dock (1:1 Antigravity) */}
           <FloatingInputDock
             promptInput={promptInput}
             onChange={(e) => setPromptInput(e.target.value)}
             onKeyDown={handleKeyDown}
             onSend={handleSendMessage}
+            onAbort={handleAbort}
             onScrollToBottom={handleScrollToBottom}
             currentModelId={currentModelId}
             onModelChange={(id) => setCurrentModelId(id)}

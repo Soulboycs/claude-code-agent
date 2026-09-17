@@ -7,9 +7,7 @@ import {
   FolderPlus,
   Folder,
   FolderOpen,
-  Settings,
-  ChevronDown,
-  ChevronRight
+  Settings
 } from 'lucide-react'
 import { FileTreeNode } from '@shared/types'
 
@@ -46,7 +44,7 @@ const DEFAULT_PROJECTS: ProjectGroup[] = [
     conversations: [
       {
         id: 'conv_1',
-        title: 'AI Agent Reference Projects',
+        title: 'AI Agent Reference Proj...',
         timeAgo: '7m',
         projectId: 'proj_agent'
       },
@@ -79,20 +77,20 @@ const DEFAULT_PROJECTS: ProjectGroup[] = [
       {
         id: 'conv_4',
         title: 'Clone GitHub Repository',
-        timeAgo: '11h',
+        timeAgo: '12h',
         projectId: 'proj_claude'
       }
     ]
   },
   {
     id: 'proj_evidence',
-    name: 'evidence-driven-en...',
+    name: 'evidence driven en...',
     isExpanded: true,
     conversations: [
       {
         id: 'conv_5',
         title: 'Auto Execution Permissi...',
-        timeAgo: '11h',
+        timeAgo: '12h',
         projectId: 'proj_evidence'
       }
     ]
@@ -105,7 +103,7 @@ const DEFAULT_PROJECTS: ProjectGroup[] = [
       {
         id: 'conv_6',
         title: 'Bypass Antigravity Pro...',
-        timeAgo: '11h',
+        timeAgo: '12h',
         projectId: 'proj_hopper'
       }
     ]
@@ -196,13 +194,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Folder className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
                 )}
                 <span className="truncate font-medium text-[11px]">{project.name}</span>
-                <span className="ml-auto">
-                  {isExpanded ? (
-                    <ChevronDown className="w-2.5 h-2.5 text-neutral-300" />
-                  ) : (
-                    <ChevronRight className="w-2.5 h-2.5 text-neutral-300" />
-                  )}
-                </span>
               </div>
 
               {/* Conversations under project */}
@@ -222,9 +213,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         title={conv.title}
                       >
                         <span className="truncate mr-2">{conv.title}</span>
-                        <span className="text-[10px] text-neutral-400 shrink-0 font-mono">
-                          {conv.timeAgo}
-                        </span>
+                        {isSelected ? (
+                          <span className="w-2.5 h-2.5 border border-neutral-500 border-t-transparent rounded-full animate-spin shrink-0 mr-1" />
+                        ) : (
+                          <span className="text-[10px] text-neutral-400 shrink-0 font-mono">
+                            {conv.timeAgo}
+                          </span>
+                        )}
                       </div>
                     )
                   })}
@@ -236,7 +231,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Pinned: Settings Button */}
-      <div className="p-3 border-t border-neutral-200/70 bg-[#fbfbfb]">
+      <div className="p-3 bg-[#fbfbfb]">
         <button
           type="button"
           onClick={onOpenSettings}

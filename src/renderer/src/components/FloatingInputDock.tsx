@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react'
-import { Plus, ArrowDown, ArrowRight } from 'lucide-react'
+import { Plus, ArrowDown, ArrowUp, Square } from 'lucide-react'
 import { ModelSelector } from './ModelSelector'
 import { AgentStatus } from '@shared/types'
 
@@ -8,6 +8,7 @@ interface FloatingInputDockProps {
   onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
   onSend: () => void
+  onAbort?: () => void
   onScrollToBottom: () => void
   currentModelId: string
   onModelChange: (modelId: string) => void
@@ -19,6 +20,7 @@ export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
   onChange,
   onKeyDown,
   onSend,
+  onAbort,
   onScrollToBottom,
   currentModelId,
   onModelChange,
@@ -38,8 +40,8 @@ export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
   }, [promptInput])
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-6 pb-4 shrink-0 pointer-events-auto">
-      <div className="relative rounded-2xl bg-white border border-neutral-200/90 shadow-[0_8px_30px_rgba(0,0,0,0.08)] p-3 flex flex-col gap-2 transition-all focus-within:border-neutral-300">
+    <div className="w-full max-w-3xl mx-auto px-6 pb-4 shrink-0 pointer-events-auto">
+      <div className="relative rounded-2xl bg-white border border-neutral-200/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-3 flex flex-col gap-1.5 transition-all focus-within:border-neutral-300">
         {/* Multi-line Textarea Input */}
         <textarea
           ref={textareaRef}
@@ -51,8 +53,8 @@ export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
           className="w-full bg-transparent px-1 py-0.5 text-sm text-neutral-900 placeholder-neutral-400 focus:outline-none resize-none max-h-40 leading-relaxed font-sans"
         />
 
-        {/* Bottom Actions Bar */}
-        <div className="flex items-center justify-between pt-1 border-t border-neutral-100 text-xs">
+        {/* Bottom Actions Bar (Seamless with no horizontal divider line) */}
+        <div className="flex items-center justify-between text-xs pt-0.5">
           {/* Left Action Buttons: + Attachment & Model Capsule */}
           <div className="flex items-center gap-1.5">
             <button
@@ -71,7 +73,7 @@ export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
             />
           </div>
 
-          {/* Right Action Buttons: Scroll to bottom & Send */}
+          {/* Right Action Buttons: Scroll to bottom & Send / Abort */}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -82,19 +84,30 @@ export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
               <ArrowDown className="w-3.5 h-3.5" />
             </button>
 
-            <button
-              type="button"
-              onClick={onSend}
-              disabled={!canSend}
-              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                canSend
-                  ? 'bg-neutral-900 hover:bg-black text-white shadow-sm'
-                  : 'bg-neutral-100 text-neutral-300 cursor-not-allowed'
-              }`}
-              title="Send message"
-            >
-              <ArrowRight className="w-3.5 h-3.5 stroke-[2.2]" />
-            </button>
+            {isBusy ? (
+              <button
+                type="button"
+                onClick={onAbort}
+                className="w-7 h-7 rounded-lg bg-rose-50 border border-rose-200/90 text-rose-600 hover:bg-rose-100 flex items-center justify-center transition-all shadow-xs"
+                title="Stop generation"
+              >
+                <Square className="w-2.5 h-2.5 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onSend}
+                disabled={!canSend}
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                  canSend
+                    ? 'bg-neutral-900 hover:bg-black text-white shadow-xs'
+                    : 'bg-neutral-100 text-neutral-300 cursor-not-allowed'
+                }`}
+                title="Send message"
+              >
+                <ArrowUp className="w-3.5 h-3.5 stroke-[2.2]" />
+              </button>
+            )}
           </div>
         </div>
       </div>
