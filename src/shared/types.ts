@@ -53,6 +53,7 @@ export interface ChatMessage {
   toolCalls?: ToolCallPayload[]
   toolResults?: ToolResultPayload[]
   timestamp: number
+  isStreaming?: boolean
 }
 
 export interface ProviderConfig {

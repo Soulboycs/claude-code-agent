@@ -1,12 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import {
   AgentEvent,
   AgentStatus,
   ApprovalRequest,
   ChatMessage,
-  FileTreeNode,
-  ToolCallPayload,
-  ToolResultPayload
+  FileTreeNode
 } from '@shared/types'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
@@ -14,7 +12,7 @@ import { ChatTimeline } from './components/ChatTimeline'
 import { ApprovalCard } from './components/ApprovalCard'
 import { TerminalView } from './components/TerminalView'
 import { SettingsModal } from './components/SettingsModal'
-import { Send, CornerDownLeft, Sparkles } from 'lucide-react'
+import { CornerDownLeft, Sparkles } from 'lucide-react'
 
 export default function App() {
   const [workspace, setWorkspace] = useState<string>('')
@@ -25,12 +23,12 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState<string>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [promptInput, setPromptInput] = useState<string>('')
+  const [currentModelId, setCurrentModelId] = useState<string>('')
 
-  // Active streaming state
-  const [activeThinking, setActiveThinking] = useState<string>('')
-  const [activeMessageDelta, setActiveMessageDelta] = useState<string>('')
-  const [activeToolCalls, setActiveToolCalls] = useState<ToolCallPayload[]>([])
-  const [activeToolResults, setActiveToolResults] = useState<Record<string, ToolResultPayload>>({})
+  // Stable reference to the active turn's assistant message ID for idempotent streaming
+  const currentAssistantMsgIdRef = useRef<string | null>(null)
+  const workspaceRef = useRef<string>('')
+  workspaceRef.current = workspace
 
   // Human-in-the-Loop pending approval
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null)
@@ -42,9 +40,9 @@ export default function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // Load files on workspace change
-  const refreshFiles = async (dir?: string) => {
-    const targetDir = dir || workspace
+  // Refresh workspace file tree
+  const refreshFiles = useCallback(async (dir?: string) => {
+    const targetDir = dir || workspaceRef.current
     if (!targetDir) return
     setIsFilesLoading(true)
     try {
@@ -53,11 +51,9 @@ export default function App() {
     } finally {
       setIsFilesLoading(false)
     }
-  }
+  }, [])
 
-  const [currentModelId, setCurrentModelId] = useState<string>('')
-
-  // Subscribe to Agent events
+  // Subscribe to Agent events once on mount — 100% idempotent & FIFO ordered
   useEffect(() => {
     // Initial workspace selection
     window.electronAPI?.selectWorkspaceFolder?.().then((folder) => {
@@ -78,51 +74,81 @@ export default function App() {
         case 'status_change':
           setStatus(event.status)
           if (event.message) setStatusMessage(event.message)
+
           if (event.status === 'completed' || event.status === 'error' || event.status === 'idle') {
-            // Commit active streaming content into messages
-            setActiveMessageDelta((prevContent) => {
-              if (prevContent.trim() || activeThinking.trim()) {
-                setMessages((prev) => [
-                  ...prev,
-                  {
-                    id: `asst_${Date.now()}`,
-                    role: 'assistant',
-                    content: prevContent,
-                    thinking: activeThinking || undefined,
-                    toolCalls: activeToolCalls,
-                    toolResults: Object.values(activeToolResults),
-                    timestamp: Date.now()
-                  }
-                ])
-              }
-              return ''
-            })
-            setActiveThinking('')
-            setActiveToolCalls([])
-            setActiveToolResults({})
+            const activeId = currentAssistantMsgIdRef.current
+            if (activeId) {
+              setMessages((prev) =>
+                prev.map((msg) => (msg.id === activeId ? { ...msg, isStreaming: false } : msg))
+              )
+              currentAssistantMsgIdRef.current = null
+            }
             setPendingApproval(null)
             refreshFiles()
           }
           break
 
-        case 'thinking_delta':
-          setActiveThinking((prev) => prev + event.delta)
+        case 'thinking_delta': {
+          const activeId = currentAssistantMsgIdRef.current
+          if (!activeId) break
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === activeId
+                ? { ...msg, thinking: (msg.thinking || '') + event.delta }
+                : msg
+            )
+          )
           break
+        }
 
-        case 'message_delta':
-          setActiveMessageDelta((prev) => prev + event.delta)
+        case 'message_delta': {
+          const activeId = currentAssistantMsgIdRef.current
+          if (!activeId) break
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === activeId
+                ? { ...msg, content: (msg.content || '') + event.delta }
+                : msg
+            )
+          )
           break
+        }
 
-        case 'tool_call_start':
-          setActiveToolCalls((prev) => [...prev, event.toolCall])
+        case 'tool_call_start': {
+          const activeId = currentAssistantMsgIdRef.current
+          if (!activeId) break
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id !== activeId) return msg
+              const existing = msg.toolCalls || []
+              // Idempotent: prevent duplicate tool call registrations
+              if (existing.some((tc) => tc.id === event.toolCall.id)) return msg
+              return { ...msg, toolCalls: [...existing, event.toolCall] }
+            })
+          )
           break
+        }
 
-        case 'tool_call_complete':
-          setActiveToolResults((prev) => ({
-            ...prev,
-            [event.result.toolCallId]: event.result
-          }))
-          // Automatically refresh files if file modification took place
+        case 'tool_call_complete': {
+          const activeId = currentAssistantMsgIdRef.current
+          if (!activeId) break
+          setMessages((prev) =>
+            prev.map((msg) => {
+              if (msg.id !== activeId) return msg
+              const existingResults = msg.toolResults || []
+              // Idempotent: update existing or append
+              const updatedResults = existingResults.some(
+                (r) => r.toolCallId === event.result.toolCallId
+              )
+                ? existingResults.map((r) =>
+                    r.toolCallId === event.result.toolCallId ? event.result : r
+                  )
+                : [...existingResults, event.result]
+              return { ...msg, toolResults: updatedResults }
+            })
+          )
+
+          // Refresh file tree if filesystem modification occurred
           if (
             event.result.name.includes('file') ||
             event.result.name === 'run_command'
@@ -130,32 +156,50 @@ export default function App() {
             refreshFiles()
           }
           break
+        }
 
         case 'approval_required':
           setPendingApproval(event.request)
           break
 
         case 'terminal_output':
-          // Auto open terminal if agent executes commands
           setIsTerminalOpen(true)
           break
 
-        case 'error':
+        case 'error': {
           setStatus('error')
           setStatusMessage(event.message)
+          const activeId = currentAssistantMsgIdRef.current
+          if (activeId) {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === activeId
+                  ? {
+                      ...msg,
+                      content: msg.content
+                        ? `${msg.content}\n\n[Error: ${event.message}]`
+                        : `[Error: ${event.message}]`,
+                      isStreaming: false
+                    }
+                  : msg
+              )
+            )
+            currentAssistantMsgIdRef.current = null
+          }
           break
+        }
       }
     })
 
     return () => {
       unsubscribe?.()
     }
-  }, [workspace, activeThinking, activeToolCalls, activeToolResults])
+  }, [refreshFiles])
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom on message content updates
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, activeThinking, activeMessageDelta, activeToolCalls, pendingApproval])
+  }, [messages, pendingApproval])
 
   const handleSelectWorkspace = async () => {
     const chosen = await window.electronAPI?.selectWorkspaceFolder?.()
@@ -169,17 +213,34 @@ export default function App() {
     const prompt = promptInput.trim()
     if (!prompt || status === 'thinking' || status === 'tool_executing') return
 
+    const now = Date.now()
+    const userMsgId = `user_${now}`
+    const asstMsgId = `asst_${now}`
+
+    currentAssistantMsgIdRef.current = asstMsgId
+
+    // Insert user message and streaming assistant placeholder simultaneously
     setMessages((prev) => [
       ...prev,
       {
-        id: `user_${Date.now()}`,
+        id: userMsgId,
         role: 'user',
         content: prompt,
-        timestamp: Date.now()
+        timestamp: now
+      },
+      {
+        id: asstMsgId,
+        role: 'assistant',
+        content: '',
+        thinking: '',
+        toolCalls: [],
+        toolResults: [],
+        isStreaming: true,
+        timestamp: now
       }
     ])
-    setPromptInput('')
 
+    setPromptInput('')
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
@@ -203,9 +264,16 @@ export default function App() {
 
   const handleAbort = async () => {
     await window.electronAPI?.abortAgent?.()
+    const activeId = currentAssistantMsgIdRef.current
+    if (activeId) {
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === activeId ? { ...msg, isStreaming: false } : msg))
+      )
+      currentAssistantMsgIdRef.current = null
+    }
+    setStatus('idle')
   }
 
-  // Auto resize textarea
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPromptInput(e.target.value)
     e.target.style.height = 'auto'
@@ -240,7 +308,7 @@ export default function App() {
         {/* Center Chat & Agent Timeline */}
         <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#121316]">
           <div className="flex-1 overflow-y-auto">
-            {messages.length === 0 && !activeThinking && !activeMessageDelta && (
+            {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-4 shadow-inner">
                   <Sparkles className="w-6 h-6" />
@@ -270,27 +338,12 @@ export default function App() {
               </div>
             )}
 
-            {/* Chat Messages */}
-            <ChatTimeline
-              messages={messages}
-              activeThinking={activeThinking}
-              activeToolCalls={activeToolCalls}
-              activeToolResults={activeToolResults}
-            />
-
-            {/* Active message delta stream preview */}
-            {activeMessageDelta && (
-              <div className="px-6 pb-6">
-                <div className="bg-[#18191f] border border-[#262833] rounded-2xl rounded-tl-sm p-4 text-sm text-neutral-200 shadow-sm leading-relaxed whitespace-pre-wrap">
-                  {activeMessageDelta}
-                  <span className="inline-block w-1.5 h-4 bg-blue-400 ml-1 animate-pulse" />
-                </div>
-              </div>
-            )}
+            {/* Unified, Idempotent Chat Messages Timeline */}
+            <ChatTimeline messages={messages} />
 
             {/* Human-in-the-loop Approval Card */}
             {pendingApproval && (
-              <div className="px-6">
+              <div className="px-6 pb-6">
                 <ApprovalCard request={pendingApproval} onRespond={handleApprovalRespond} />
               </div>
             )}

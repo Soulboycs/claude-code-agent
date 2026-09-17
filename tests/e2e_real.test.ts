@@ -97,7 +97,7 @@ describe('E2E — AgentEngine single turn', { timeout: E2E_TIMEOUT }, () => {
 })
 
 // ─── Test 3: Agent calls a real tool (list_directory) ────────────────────────
-describe('E2E — AgentEngine tool call', { timeout: E2E_TIMEOUT }, () => {
+describe('E2E — AgentEngine tool call', () => {
   it('agent calls list_directory tool on real filesystem', async () => {
     const provider = createProvider(DEEPSEEK_CONFIG)
     const engine = createDefaultAgentEngine({
@@ -131,7 +131,7 @@ describe('E2E — AgentEngine tool call', { timeout: E2E_TIMEOUT }, () => {
     // Tool should return a result
     expect(toolResultEvents.length).toBeGreaterThan(0)
     expect(toolResultEvents[0].result.isError).toBe(false)
-  })
+  }, 30000)
 })
 
 // ─── Test 4: Agent reads a real file ─────────────────────────────────────────
