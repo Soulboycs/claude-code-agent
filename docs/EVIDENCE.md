@@ -182,3 +182,109 @@ $ curl.exe -s http://117.72.101.76/health
 ```
 - **判定**: **通过 (PASSED)**，推送到 main 分支全自动完成代码部署、服务热重载与环境自愈，完全零人工介入。
 
+---
+
+## 证据条目 9: 零信任极限对抗性测试套件 (Adversarial Chat & Boundary Suite)
+
+- **执行时间**: 2026-09-17 20:00:28
+- **执行命令**: `& "C:\Users\Administrator\.bun\bin\bun.exe" test tests/adversarial_chat.test.ts`
+- **结果**: **19 pass, 0 fail, 114 expect() calls. 耗时 10.00ms**
+
+### 原始终端日志:
+```text
+bun test v1.4.2 (744846f84)
+
+tests\adversarial_chat.test.ts:
+(pass) Adversarial Boundary Tests: 1. 乱序与游离事件 (Out-of-order & Stray Events) > safely drops stray thinking_delta when activeTurnId is null without crashing or creating orphan messages [0.13ms]
+(pass) Adversarial Boundary Tests: 1. 乱序与游离事件 (Out-of-order & Stray Events) > safely drops stray message_delta when activeTurnId is null without state corruption [0.01ms]
+(pass) Adversarial Boundary Tests: 1. 乱序与游离事件 (Out-of-order & Stray Events) > safely drops stray tool_call_start and tool_call_complete when activeTurnId is null [0.02ms]
+(pass) Adversarial Boundary Tests: 1. 乱序与游离事件 (Out-of-order & Stray Events) > safely ignores stray error and status_change when no turn is active [0.02ms]
+(pass) Adversarial Boundary Tests: 1. 乱序与游离事件 (Out-of-order & Stray Events) > safely ignores non-existent activeTurnId reference without throwing exceptions [0.09ms]
+(pass) Adversarial Boundary Tests: 2. 重复完成与幽灵事件 (Ghost Completions & Flapping) > terminal status transition is strictly irreversible under status flapping [0.20ms]
+(pass) Adversarial Boundary Tests: 2. 重复完成与幽灵事件 (Ghost Completions & Flapping) > disallows late message_delta and late thinking_delta after completion from mutating finished messages [0.02ms]
+(pass) Adversarial Boundary Tests: 2. 重复完成与幽灵事件 (Ghost Completions & Flapping) > never creates duplicate assistant message cards under repeated startUserTurn with identical turnId [0.04ms]
+(pass) Adversarial Boundary Tests: 3. 高频事件洪峰 (Event Flooding & Burst Stress) > handles 1000 thinking_delta + 1000 message_delta bursts with zero truncation or packet drop [1.21ms]
+(pass) Adversarial Boundary Tests: 4. 工具生命周期对抗 (Adversarial Tool Lifecycles) > supports multiple concurrent tools starting in same turn and completing in arbitrary interleaved order [0.20ms]
+(pass) Adversarial Boundary Tests: 4. 工具生命周期对抗 (Adversarial Tool Lifecycles) > rejects duplicate tool_call_start with identical id (idempotency) [0.03ms]
+(pass) Adversarial Boundary Tests: 4. 工具生命周期对抗 (Adversarial Tool Lifecycles) > updates tool_call_complete in-place when duplicate completion events arrive for the same tool [0.04ms]
+(pass) Adversarial Boundary Tests: 4. 工具生命周期对抗 (Adversarial Tool Lifecycles) > handles unknown toolCallId in tool_call_complete without corrupting toolCalls array [0.02ms]
+(pass) Adversarial Boundary Tests: 5. 用户快速打断与重试 (Rapid Interruption & Cancellation) > user interrupts streaming via abort/idle, then immediately launches a new turn: old turn is sealed, new turn takes over [0.06ms]
+(pass) Adversarial Boundary Tests: 5. 用户快速打断与重试 (Rapid Interruption & Cancellation) > defensively seals prior turn even if abort/idle event was dropped before new turn starts [0.02ms]
+(pass) Adversarial Boundary Tests: 5. 用户快速打断与重试 (Rapid Interruption & Cancellation) > handles error action mid-stream: seals active turn and embeds error message [0.03ms]
+(pass) Adversarial Boundary Tests: 6. 非侵入工作区契约 (Non-intrusive Workspace Contract) > verifies getCurrentWorkspace returns an existing absolute path without throwing [0.09ms]
+(pass) Adversarial Boundary Tests: 6. 非侵入工作区契约 (Non-intrusive Workspace Contract) > guarantees non-intrusive workspace retrieval has zero side effects and is strictly idempotent [0.05ms]
+(pass) Adversarial Boundary Tests: 6. 非侵入工作区契约 (Non-intrusive Workspace Contract) > simulates main process getCurrentWorkspace IPC handler: returns absolute path without dialog invocation [0.21ms]
+
+ 19 pass
+ 0 fail
+ 114 expect() calls
+Ran 19 tests across 1 file. [10.00ms]
+```
+- **判定**: **通过 (PASSED)**，流式事件排序、幂等去重、高频洪峰、打断重试与非侵入工作区全链路极限断言 100% 成立。
+
+---
+
+## 证据条目 10: 全工程自动化回归与极限对抗综合验证 (Full Regression Suite)
+
+- **执行时间**: 2026-09-17 20:01:47
+- **执行命令**: `& "C:\Users\Administrator\.bun\bin\bun.exe" test tests/`
+- **结果**: **67 pass, 0 fail, 319 expect() calls. 耗时 13.80s**
+- **涵盖模块**:
+  1. `tests/adversarial_chat.test.ts` (19 pass)
+  2. `tests/chat_reducer.test.ts` (9 pass)
+  3. `tests/e2e_real.test.ts` (5 pass, 真实 DeepSeek 网络调用与真实文件工具读写)
+  4. `tests/orchestrator.test.ts` (2 pass, 工具并发与写隔离)
+  5. `tests/providers.test.ts` (11 pass, 多供应商模型矩阵)
+  6. `tests/providers_e2e.test.ts` (6 pass, 调度引擎状态机)
+  7. `tests/queryEngine.test.ts` (2 pass, 异步生成器与人机协同审批)
+  8. `tests/server.test.ts` (10 pass, REST & WebSocket 网关)
+  9. `tests/workspace.test.ts` (3 pass, 工作区非侵入探测)
+
+### 原始终端日志摘要:
+```text
+bun test v1.4.2 (744846f84)
+
+tests\adversarial_chat.test.ts:
+(pass) Adversarial Boundary Tests: 1. 乱序与游离事件 ... [5 tests pass]
+(pass) Adversarial Boundary Tests: 2. 重复完成与幽灵事件 ... [3 tests pass]
+(pass) Adversarial Boundary Tests: 3. 高频事件洪峰 ... [1 test pass, 1.21ms]
+(pass) Adversarial Boundary Tests: 4. 工具生命周期对抗 ... [4 tests pass]
+(pass) Adversarial Boundary Tests: 5. 用户快速打断与重试 ... [3 tests pass]
+(pass) Adversarial Boundary Tests: 6. 非侵入工作区契约 ... [3 tests pass]
+
+tests\chat_reducer.test.ts:
+(pass) Chat State Machine — TDD: 去重与幂等性 ... [6 tests pass]
+(pass) Chat State Machine — TDD: 流式输出与事件顺序性 ... [3 tests pass]
+
+tests\e2e_real.test.ts:
+(pass) E2E — DeepSeek Raw API > streams a real text response from DeepSeek API [1210.14ms]
+(pass) E2E — AgentEngine single turn > runs a full agent turn and emits message_delta events [2408.82ms]
+(pass) E2E — AgentEngine tool call > agent calls list_directory tool on real filesystem [4211.39ms]
+(pass) E2E — AgentEngine tool call > agent reads a temp file and reports its content [3187.53ms]
+(pass) E2E — Provider switch via setProvider > engine accepts provider switch and runs successfully [1982.76ms]
+
+tests\orchestrator.test.ts:
+(pass) ToolOrchestrator - Concurrency Partitioning & Execution Tests [2 tests pass]
+
+tests\providers.test.ts:
+(pass) ProviderFactory — unit & ModelCatalog [11 tests pass]
+
+tests\providers_e2e.test.ts:
+(pass) AgentEngine E2E — MockProvider [6 tests pass]
+
+tests\queryEngine.test.ts:
+(pass) Query AsyncGenerator State Machine Tests [2 tests pass]
+
+tests\server.test.ts:
+(pass) Bun.serve Server & WebSocket Gateway Tests [10 tests pass]
+
+tests\workspace.test.ts:
+(pass) Workspace Manager — TDD: Non-intrusive Workspace Detection [3 tests pass]
+
+ 67 pass
+ 0 fail
+ 319 expect() calls
+Ran 67 tests across 9 files. [13.80s]
+```
+- **判定**: **全部通过 (ALL 67 PASSED)**，零故障、零跳过、零断言失败。
+

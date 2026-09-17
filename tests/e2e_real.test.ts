@@ -39,7 +39,7 @@ async function runWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 // ─── Test 1: Raw provider chatStream ─────────────────────────────────────────
-describe('E2E — DeepSeek Raw API', { timeout: E2E_TIMEOUT }, () => {
+describe('E2E — DeepSeek Raw API', () => {
   it('streams a real text response from DeepSeek API', async () => {
     const provider = createProvider(DEEPSEEK_CONFIG)
 
@@ -61,11 +61,11 @@ describe('E2E — DeepSeek Raw API', { timeout: E2E_TIMEOUT }, () => {
     // Should contain our requested token
     expect(result.fullContent.toUpperCase()).toContain('NEXUS_OK')
     expect(chunks.length).toBeGreaterThan(0) // streaming chunks received
-  })
+  }, E2E_TIMEOUT)
 })
 
 // ─── Test 2: AgentEngine single turn, no tools ───────────────────────────────
-describe('E2E — AgentEngine single turn', { timeout: E2E_TIMEOUT }, () => {
+describe('E2E — AgentEngine single turn', () => {
   it('runs a full agent turn and emits message_delta events', async () => {
     const provider = createProvider(DEEPSEEK_CONFIG)
     const engine = createDefaultAgentEngine({
@@ -93,7 +93,7 @@ describe('E2E — AgentEngine single turn', { timeout: E2E_TIMEOUT }, () => {
     console.log('[E2E] Full streamed response:', JSON.stringify(fullResponse))
     expect(fullResponse.toUpperCase()).toContain('AGENT_E2E_OK')
     expect(engine.getStatus()).toBe('completed')
-  })
+  }, E2E_TIMEOUT)
 })
 
 // ─── Test 3: Agent calls a real tool (list_directory) ────────────────────────
@@ -135,7 +135,7 @@ describe('E2E — AgentEngine tool call', () => {
 })
 
 // ─── Test 4: Agent reads a real file ─────────────────────────────────────────
-describe('E2E — Agent reads a real file', { timeout: E2E_TIMEOUT }, () => {
+describe('E2E — Agent reads a real file', () => {
   it('agent reads a temp file and reports its content', async () => {
     // Write a test file
     const testFile = path.join(WORKSPACE, 'nexus_e2e_test.txt')
@@ -151,12 +151,15 @@ describe('E2E — Agent reads a real file', { timeout: E2E_TIMEOUT }, () => {
 
       const allDelta: string[] = []
       engine.on('event', (e: any) => {
+        if (e.type === 'approval_required') {
+          engine.respondApproval(e.request.id, true)
+        }
         if (e.type === 'message_delta') allDelta.push(e.delta)
         console.log(`[E2E] event: ${e.type}`, e.toolCall?.name ?? e.delta?.slice?.(0, 30) ?? '')
       })
 
       await runWithTimeout(
-        engine.run(`Read the file at path "${testFile}" and tell me the exact content you find.`),
+        engine.run(`Read the file at path "${testFile}" using view_file and tell me the exact content you find.`),
         E2E_TIMEOUT
       )
 
@@ -168,11 +171,11 @@ describe('E2E — Agent reads a real file', { timeout: E2E_TIMEOUT }, () => {
     } finally {
       fs.unlinkSync(testFile)
     }
-  })
+  }, E2E_TIMEOUT)
 })
 
 // ─── Test 5: Model selector — provider switches correctly ────────────────────
-describe('E2E — Provider switch via setProvider', { timeout: E2E_TIMEOUT }, () => {
+describe('E2E — Provider switch via setProvider', () => {
   it('engine accepts provider switch and runs successfully with new provider', async () => {
     const provider1 = createProvider(DEEPSEEK_CONFIG)
     const engine = createDefaultAgentEngine({
@@ -203,5 +206,5 @@ describe('E2E — Provider switch via setProvider', { timeout: E2E_TIMEOUT }, ()
     const resp2 = events2.join('')
     console.log('[E2E] After provider switch response:', JSON.stringify(resp2))
     expect(resp2.length).toBeGreaterThan(0)
-  })
+  }, E2E_TIMEOUT)
 })

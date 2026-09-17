@@ -22,11 +22,16 @@ export function startUserTurn(state: ChatState, prompt: string, turnId: string):
   }
 
   const now = Date.now()
-  const userMsgId = `user_${now}`
+  const userMsgId = `user_${now}_${Math.random().toString(36).slice(2, 7)}`
+
+  // Defensively seal any prior streaming messages so old turns never keep streaming
+  const sanitizedMessages = state.messages.map((msg) =>
+    msg.isStreaming ? { ...msg, isStreaming: false } : msg
+  )
 
   return {
     messages: [
-      ...state.messages,
+      ...sanitizedMessages,
       {
         id: userMsgId,
         role: 'user',
