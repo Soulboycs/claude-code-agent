@@ -130,6 +130,16 @@ Guidelines:
       content: userPrompt
     })
 
+    if (this.conversationHistory.length > 40) {
+      const systemMsg = this.conversationHistory[0]
+      const last20 = this.conversationHistory.slice(-20)
+      this.conversationHistory = [
+        systemMsg,
+        { role: 'user', content: '[上下文已压缩，保留最近对话]' },
+        ...last20
+      ]
+    }
+
     let step = 0
 
     try {
@@ -143,6 +153,9 @@ Guidelines:
           this.conversationHistory,
           this.toolRegistry.getAllTools(),
           (chunk) => {
+            if (chunk.statusUpdate) {
+              this.setStatus('thinking', chunk.statusUpdate)
+            }
             if (chunk.thinking) {
               this.emitEvent({ type: 'thinking_delta', delta: chunk.thinking })
             }

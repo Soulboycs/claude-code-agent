@@ -6,11 +6,13 @@ import {
   listDirectoryTool
 } from './tools/fileTools'
 import { runCommandTool } from './tools/commandTool'
+import { globTool, grepTool } from './tools/globGrepTools'
 
 export * from './core/AgentEngine'
 export * from './tools/ToolRegistry'
 export * from './tools/fileTools'
 export * from './tools/commandTool'
+export * from './tools/globGrepTools'
 export * from './providers/LLMProvider'
 
 export function createDefaultAgentEngine(options: AgentEngineOptions): AgentEngine {
@@ -23,6 +25,8 @@ export function createDefaultAgentEngine(options: AgentEngineOptions): AgentEngi
   registry.registerTool(replaceFileContentTool)
   registry.registerTool(listDirectoryTool)
   registry.registerTool(runCommandTool)
+  registry.registerTool(globTool)
+  registry.registerTool(grepTool)
 
   return engine
 }

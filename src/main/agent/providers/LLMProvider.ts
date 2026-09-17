@@ -24,6 +24,7 @@ export interface LLMStreamChunk {
     arguments: string
   }>
   finishReason?: string
+  statusUpdate?: string
 }
 
 export interface ILLMProvider {
@@ -80,22 +81,46 @@ export class OpenAICompatibleProvider implements ILLMProvider {
       body.tool_choice = 'auto'
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.config.apiKey}`
-      },
-      body: JSON.stringify(body),
-      signal
-    })
+    let response: Response | undefined
+    let retries = 0
+    const maxRetries = 3
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`LLM Provider API error (${response.status}): ${errorText}`)
+    while (retries <= maxRetries) {
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.config.apiKey}`
+          },
+          body: JSON.stringify(body),
+          signal
+        })
+
+        if (!response.ok) {
+          if ((response.status === 429 || response.status >= 500) && retries < maxRetries) {
+            retries++
+            onChunk({ statusUpdate: `Rate limited or server error (${response.status}). Retrying in 2s (attempt ${retries}/${maxRetries})...` })
+            await new Promise(r => setTimeout(r, 2000))
+            continue
+          }
+          const errorText = await response.text()
+          throw new Error(`LLM Provider API error (${response.status}): ${errorText}`)
+        }
+        break
+      } catch (err: any) {
+        if (err.name === 'AbortError') throw err
+        if (retries < maxRetries) {
+          retries++
+          onChunk({ statusUpdate: `Network error: ${err.message}. Retrying in 2s (attempt ${retries}/${maxRetries})...` })
+          await new Promise(r => setTimeout(r, 2000))
+        } else {
+          throw err
+        }
+      }
     }
 
-    if (!response.body) {
+    if (!response || !response.body) {
       throw new Error('LLM response body is empty.')
     }
 

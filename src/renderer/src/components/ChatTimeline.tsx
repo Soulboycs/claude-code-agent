@@ -111,7 +111,7 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({
                           )}
                         </div>
 
-                        {isExpanded && (
+                            {isExpanded && (
                           <div className="p-3 border-t border-neutral-800 bg-[#121316] space-y-2">
                             <div>
                               <div className="text-[10px] uppercase font-semibold text-neutral-500 mb-1">Arguments:</div>
@@ -119,6 +119,29 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({
                                 {JSON.stringify(tc.arguments, null, 2)}
                               </pre>
                             </div>
+                            
+                            {(tc.name === 'write_to_file' || tc.name === 'replace_file_content') && (
+                              <div className="mt-2">
+                                <div className="text-[10px] uppercase font-semibold text-neutral-500 mb-1">
+                                  {tc.name === 'write_to_file' ? 'File Content Preview' : 'Diff Preview'} ({(tc.arguments as any).filePath}):
+                                </div>
+                                {tc.name === 'write_to_file' ? (
+                                  <pre className="text-neutral-300 font-mono text-[11px] bg-black/40 p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                                    {(tc.arguments as any).content}
+                                  </pre>
+                                ) : (
+                                  <div className="flex flex-col gap-1">
+                                    <pre className="text-rose-400 bg-rose-950/20 font-mono text-[11px] p-2 rounded overflow-x-auto whitespace-pre-wrap opacity-80">
+                                      - {(tc.arguments as any).targetContent}
+                                    </pre>
+                                    <pre className="text-emerald-400 bg-emerald-950/20 font-mono text-[11px] p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                                      + {(tc.arguments as any).replacementContent}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {result && (
                               <div>
                                 <div className="text-[10px] uppercase font-semibold text-neutral-500 mb-1">Result:</div>
@@ -215,6 +238,29 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({
                 <pre className="text-neutral-300 font-mono text-[11px] bg-black/40 p-2 rounded overflow-x-auto">
                   {JSON.stringify(tc.arguments, null, 2)}
                 </pre>
+                
+                {(tc.name === 'write_to_file' || tc.name === 'replace_file_content') && (
+                  <div className="mt-2">
+                    <div className="text-[10px] uppercase font-semibold text-neutral-500 mb-1">
+                      {tc.name === 'write_to_file' ? 'File Content Preview' : 'Diff Preview'} ({(tc.arguments as any).filePath}):
+                    </div>
+                    {tc.name === 'write_to_file' ? (
+                      <pre className="text-neutral-300 font-mono text-[11px] bg-black/40 p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                        {(tc.arguments as any).content}
+                      </pre>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        <pre className="text-rose-400 bg-rose-950/20 font-mono text-[11px] p-2 rounded overflow-x-auto whitespace-pre-wrap opacity-80">
+                          - {(tc.arguments as any).targetContent}
+                        </pre>
+                        <pre className="text-emerald-400 bg-emerald-950/20 font-mono text-[11px] p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                          + {(tc.arguments as any).replacementContent}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {result && (
                   <pre
                     className={`font-mono text-[11px] p-2 rounded overflow-x-auto ${
