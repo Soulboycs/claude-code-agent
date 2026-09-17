@@ -40,6 +40,15 @@ export default function App() {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const isAutoScrollEnabledRef = useRef<boolean>(true)
+
+  const handleScroll = () => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    isAutoScrollEnabledRef.current = isAtBottom
+  }
 
   // Refresh workspace file tree
   const refreshFiles = useCallback(async (dir?: string) => {
@@ -106,9 +115,11 @@ export default function App() {
     }
   }, [refreshFiles])
 
-  // Auto-scroll to bottom on message content updates
+  // Smart Auto-scroll: follow stream when at bottom, respect user scroll-up
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (isAutoScrollEnabledRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages, pendingApproval])
 
   const handleSelectWorkspace = async () => {
@@ -125,6 +136,10 @@ export default function App() {
 
     const now = Date.now()
     const asstMsgId = `asst_${now}`
+
+    // Force stick to bottom on new message
+    isAutoScrollEnabledRef.current = true
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
 
     // Dispatch turn initiation directly into chatReducer
     dispatchChat({
@@ -201,7 +216,7 @@ export default function App() {
 
         {/* Center Chat & Agent Timeline */}
         <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#121316]">
-          <div className="flex-1 overflow-y-auto">
+          <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-4 shadow-inner">

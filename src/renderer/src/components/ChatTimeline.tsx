@@ -9,6 +9,7 @@ import {
   Wrench
 } from 'lucide-react'
 import { ChatMessage } from '@shared/types'
+import { StreamingText } from './StreamingText'
 
 interface ChatTimelineProps {
   messages: ChatMessage[]
@@ -74,7 +75,10 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
                     </div>
                     {isThinkingExpanded && (
                       <div className="p-3 text-neutral-400 font-mono text-[11px] whitespace-pre-wrap leading-relaxed border-t border-neutral-800/60 bg-[#121316]">
-                        {msg.thinking}
+                        <StreamingText
+                          content={msg.thinking || ''}
+                          isStreaming={!!(msg.isStreaming && !msg.content)}
+                        />
                       </div>
                     )}
                   </div>
@@ -176,13 +180,13 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
                   </div>
                 )}
 
-                {/* Message Content with in-place streaming cursor */}
+                {/* Message Content with in-place smooth typewriter streaming */}
                 {(msg.content || (msg.isStreaming && !msg.thinking && (!msg.toolCalls || msg.toolCalls.length === 0))) && (
                   <div className="bg-[#18191f] border border-[#262833] rounded-2xl rounded-tl-sm p-4 text-sm text-neutral-200 shadow-sm leading-relaxed whitespace-pre-wrap">
-                    {msg.content}
-                    {msg.isStreaming && (
-                      <span className="inline-block w-2 h-4 bg-blue-400 ml-1 translate-y-0.5 animate-pulse rounded-sm" />
-                    )}
+                    <StreamingText
+                      content={msg.content || ''}
+                      isStreaming={!!msg.isStreaming}
+                    />
                   </div>
                 )}
               </div>
