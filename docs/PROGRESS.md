@@ -32,3 +32,37 @@
 | **Push-to-Deploy Webhook 闭环** | `src/server/index.ts` + `webhook-deploy.sh` | 生产验证通过 | `curl http://117.72.101.76/api/webhook/deploy` | GitHub Push 事件直接触发云端异步更新、Bun 依赖重装与服务重启 |
 | **GitHub Webhook 线上注册与交付** | 仓库 `Soulboycs/claude-code-agent` | 交付正常 | `gh api repos/.../hooks/680638362/deliveries` | Hook ID 680638362 注册生效，Ping/Push 200 OK 纳秒级响应 |
 
+
+---
+
+## 流式输出整改批次（2026-09-17，审计驱动）
+
+| 整改项 | 状态 | 验证 | 备注 |
+| :--- | :--- | :--- | :--- |
+| 3 条高价值 Pacer 补测（≤6 分支/替换路径/节奏下界） | ✅ 单元验证通过 | `bun test tests/stream_pacer.test.ts` 12/12 | 变异 M-A/M-B 复验 KILLED |
+| 滚动竞态修复（ScrollFollower 输入源检测 + scrollTop 直赋） | ✅ 集成验证通过 | `tests/dom/scrollFollower.domtest.ts` 9/9 + typecheck:web 0 错 | 变异 M-D KILLED；**沙箱级验证，真机视觉确认待做** |
+| StreamingText：移除伪影启发式 / 接线平滑收尾 / S2 心跳 | ✅ 组件验证通过 | `tests/dom/StreamingText.domtest.tsx` 5/5 | 变异 M-E KILLED；isFinished 死路径决策=**接线** |
+| vitest + happy-dom DOM 测试环境 | ✅ 建成 | `npm run test:vitest` 14/14 | `.domtest` 命名与 bun 门禁隔离（bun 实测仍 13 文件） |
+| TEST-MATRIX / TEST-QUALITY-AUDIT / EVIDENCE 文档校正 | ✅ 完成 | 见各文档 2026-09-17 章节 | "A+ 100%" 降级为 B+（附证据） |
+
+**当前门禁状态**: `bun test tests/` **100 pass / 0 fail**；`npm run test:vitest` **14 pass / 0 fail**。
+
+**不能宣称的结论**:
+- 滚动修复仅经 DOM 沙箱验证，未做真机 Electron 视觉回归（含 4 个 electron.exe 进程在跑的现行会话）；
+- UI 层 e2e（Playwright 级）仍缺失；
+- **P0 未闭环**: `tests/e2e_real.test.ts:16` 泄漏的真实 DeepSeek key 仍在 git 历史与远端，需人工轮换；
+- `typecheck:node` 4 个预存主进程类型错误未处理（非本批次引入）。
+
+---
+
+## P0 密钥泄漏整改（2026-09-17 第二批）
+
+| 事项 | 状态 | 证据 |
+| :--- | :--- | :--- |
+| 代码层清除（e2e_real + logger 两处） | ✅ 完成 | `git grep sk-c74d22f3` 追踪内容零命中 |
+| 凭据本地化（.env.local，gitignore 验证） | ✅ 完成 | `git check-ignore .env.local` 命中 .gitignore:30 |
+| 无凭据优雅降级（skip 而非 fail） | ✅ 验证通过 | 无 key: 6 skip / 0 fail；有 key: 6 pass（真实 API） |
+| **key 轮换（DeepSeek 控制台）** | ⏳ **等待用户** | 轮换后仅需更新本地 .env.local |
+| **git 历史清除 + 远端 force-push** | ⏳ **等待用户确认时机** | 见下方方案；需与并行会话协调 |
+
+**当前门禁**: `bun test tests/` 100 pass / 0 fail；`npm run test:vitest` 14 pass / 0 fail。

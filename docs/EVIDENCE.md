@@ -327,3 +327,56 @@ Ran 67 tests across 9 files. [13.80s]
 
 
 
+
+---
+
+## 证据条目 12: 流式输出独立复审与五项整改回归（2026-09-17）
+
+**任务**: 对照"逐字平滑流式输出实施计划"独立审查实现/测试/e2e，并执行五项整改（补测、滚动竞态修复、死路径接线、S2 心跳、文档校正）。
+
+### 12.1 审计阶段证据（整改前）
+- 基线: `bun test tests/` → **90 pass / 0 fail**（13 files, 16.73s）
+- 独立变异注入（针对 09-16 审计未覆盖路径）:
+  - M-A（`pending<=6`→6字/帧）: **SURVIVED**（`bun test` 3 文件 34/35 pass 0 fail，两轮）
+  - M-B（`setTarget` 替换路径清零）: **SURVIVED**（同上，两轮）
+  - M-C（移除 dt≥200 快进）: **KILLED**（`stream_pacer.test.ts` background-tab 用例失败）
+- S2 心跳: `grep -rn "Receiving|heartbeat|心跳" src/ tests/` → **零命中（未实现）**
+- UI e2e: 仓库无 Playwright/WebdriverIO；`vitest.config.ts` 原 include 指向不存在的 `test/` 目录（实际 0 用例）。
+
+### 12.2 整改后回归证据
+- `bun test tests/` → **100 pass / 0 fail**（13 files, 15.26s；新增 TM-S1/S2/S3 三用例；DOM 套件经 `.domtest` 命名隔离未被 bun 收集）
+- `npm run test:vitest` → **14 pass / 0 fail**（2 files: scrollFollower 9 + StreamingText 5）
+- 整改后变异复验: M-A `pass=11 fail=1` **KILLED**；M-B `pass=11 fail=1` **KILLED**；M-D（旧滚动缺陷行为）`scrollFollower.domtest.ts:43` 失败 **KILLED**；M-E（心跳阈值失效）`StreamingText.domtest.tsx:104` 失败 **KILLED**。所有变异体注入后已恢复（残留标记 grep 为 False，`git status` 干净）。
+- `npm run typecheck:web` → 本次改动 0 错误（现存 6 个 TS6133 为预存，位于未触碰文件）；`typecheck:node` 4 个错误均为预存主进程问题。
+
+### 12.3 整改交付物
+- [NEW] `src/renderer/src/utils/scrollFollower.ts` — 输入源检测式吸底（位置启发式只启用、绝不关闭跟随；scrollTop 直赋）
+- [MOD] `src/renderer/src/App.tsx` — 移除 smooth scrollIntoView + bottomRef，接入 ScrollFollower（wheel 上滚/滚动条拖拽/导航键关闭跟随，回底恢复）
+- [MOD] `src/renderer/src/components/StreamingText.tsx` — 移除 closeUnclosedCodeBlocks（可见伪影）；接线 isFinished 平滑收尾（≤12 帧收敛，历史消息直出）；新增 S2 心跳 [Receiving...]（5s 阈值）
+- [MOD] `vitest.config.ts` — include 改为 `tests/dom/**/*.domtest.{ts,tsx}`（happy-dom 经 docblock 声明）
+- [NEW] `tests/dom/scrollFollower.domtest.ts`、`tests/dom/StreamingText.domtest.tsx`
+- [MOD] `tests/stream_pacer.test.ts` — 追加 TM-S1/S2/S3 三用例
+- devDependencies 新增: `happy-dom@20.14.5`、`@testing-library/react@16.3.3`
+
+### 12.4 环境完整性备注
+本次审计与整改期间存在并行会话写入测试文件（曾致运行间测试数漂移 34→35）；所有结论均对最新工作区状态复验。
+
+---
+
+## 证据条目 13: P0 密钥泄漏整改 — 凭据本地化（2026-09-17）
+
+**泄漏面扫描**: `git grep -n "sk-c74d22f3" -- .` 整改后对已追踪内容**零命中**；整改前泄漏点共 2 处（`tests/e2e_real.test.ts:19` 与 `tests/logger.test.ts:7`，后者为此前审计遗漏项）。
+
+**整改动作**:
+- `tests/e2e_real.test.ts`: 移除硬编码 key → `DEEPSEEK_API_KEY` 环境变量注入 + 显式加载项目根 `.env.local`（实测 `bun test` 不会自动注入该文件，探针用例证实 `KEY_LEN=0 NODE_ENV=test`）；无凭据时 6 个用例 `it.skipIf` 全部优雅跳过
+- `tests/logger.test.ts`: 脱敏测试改用合成同形状假 key（`sk-0f1e...e1f0`），测试语义不变
+- 新建本地 `.env.local`（`.gitignore:30` 已忽略，`git check-ignore` 验证生效），key 仅存于本机
+
+**验证证据**:
+- 有 key（.env.local 存在）: `bun test tests/e2e_real.test.ts` → **6 pass / 0 fail**（真实 DeepSeek 网络调用，实测 TTFT 1407.3ms）
+- 无 key（临时移除 .env.local）: **6 skip / 0 fail**（24ms，零网络调用），随后 .env.local 已恢复
+- 全量门禁: `bun test tests/` **100 pass / 0 fail**；`npm run test:vitest` **14 pass / 0 fail**
+
+**未闭环事项（需人工）**:
+1. **key 轮换**: 该 key 已推送至公开远端，必须视为已泄露，需用户在 DeepSeek 控制台轮换，轮换后仅更新本地 `.env.local` 即可；
+2. **git 历史清除**: key 仍存在于历史提交（最早引入于真实 e2e 相关提交）与远端，需 `git filter-repo` 重写 + force-push，时机需与并行会话协调（另见 PROGRESS）。
