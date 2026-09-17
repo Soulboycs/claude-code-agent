@@ -20,27 +20,13 @@ def test_download_and_run():
         shutil.rmtree(extract_dir)
 
     print("==================================================")
-    print(f"[*] Step 1: Initiating real HTTP download from {url}...")
+    print(f"[*] Step 1: Initiating real HTTP download from {url} via curl.exe...")
     start = time.time()
 
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-    with urllib.request.urlopen(req) as resp, open(test_zip, "wb") as f:
-        code = resp.getcode()
-        headers = dict(resp.getheaders())
-        print(f"  [+] HTTP Status: {code}")
-        print(f"  [+] Content-Type: {headers.get('Content-Type')}")
-        print(f"  [+] Content-Length: {headers.get('Content-Length')} bytes")
-        print(f"  [+] Content-Disposition: {headers.get('Content-Disposition')}")
-        
-        total = 0
-        while True:
-            chunk = resp.read(1024 * 1024)
-            if not chunk:
-                break
-            f.write(chunk)
-            total += len(chunk)
+    subprocess.run(["curl.exe", "-fSL", url, "-o", str(test_zip)], check=True)
 
     elapsed = time.time() - start
+    total = test_zip.stat().st_size
     mb = total / (1024 * 1024)
     print(f"  [+] Download completed: {mb:.2f} MB in {elapsed:.2f}s ({mb/elapsed:.2f} MB/s)")
 
