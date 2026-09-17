@@ -1,0 +1,4 @@
+interface:
+  display_name: "长时运行工程开发"
+  short_description: "用测试定义边界，独立审查并诚实报告"
+  default_prompt: "使用本 Skill 开发当前任务：先定义范围和契约测试，再由独立代理实现、对抗性测试和审查，并维护可复现证据与诚实的发布门禁报告。"

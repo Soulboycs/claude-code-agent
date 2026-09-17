@@ -1,0 +1,96 @@
+#!/usr/bin/env bun
+import { createDefaultAgentEngine } from '../src/main/agent/index'
+import { ToolOrchestrator } from '../src/agent/core/ToolOrchestrator'
+import { query } from '../src/agent/core/query'
+import { OpenAICompatibleProvider, MockLLMProvider } from '../src/main/agent/providers/LLMProvider'
+import readline from 'readline'
+
+const args = process.argv.slice(2)
+const prompt = args.join(' ').trim()
+
+const apiKey = process.env.OPENAI_API_KEY || ''
+const baseURL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
+const model = process.env.OPENAI_MODEL || 'gpt-4o'
+
+const provider = apiKey
+  ? new OpenAICompatibleProvider({ provider: 'openai', apiKey, baseURL, model })
+  : new MockLLMProvider()
+
+const engine = createDefaultAgentEngine({ workspaceRoot: process.cwd() })
+const orchestrator = new ToolOrchestrator(engine.getToolRegistry())
+
+async function runPrompt(userText: string) {
+  console.log(`\n\x1b[36m[Agent Prompt]\x1b[0m ${userText}\n`)
+
+  const q = query({
+    messages: [
+      {
+        role: 'system',
+        content: 'You are an autonomous AI Coding Agent. Inspect files and run commands to complete user requests.',
+      },
+      { role: 'user', content: userText },
+    ],
+    toolRegistry: engine.getToolRegistry(),
+    orchestrator,
+    provider,
+    workspaceRoot: process.cwd(),
+    onApprovalRequired: async (req) => {
+      console.log(`\n\x1b[33m[Approval Required]\x1b[0m ${req.promptMessage}`)
+      console.log(`Tool: ${req.toolName}`)
+      console.log(`Arguments: ${JSON.stringify(req.arguments, null, 2)}`)
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+      return new Promise((resolve) => {
+        rl.question('\x1b[32mAllow execution? (y/N): \x1b[0m', (ans) => {
+          rl.close()
+          resolve(ans.trim().toLowerCase() === 'y')
+        })
+      })
+    },
+    onTerminalOutput: (chunk) => {
+      process.stdout.write(chunk)
+    },
+  })
+
+  for await (const event of q) {
+    if (event.type === 'thinking_delta') {
+      process.stdout.write(`\x1b[90m${event.delta}\x1b[0m`)
+    } else if (event.type === 'message_delta') {
+      process.stdout.write(event.delta)
+    } else if (event.type === 'tool_call_start') {
+      console.log(`\n\x1b[34m[Tool Call]\x1b[0m ${event.toolCall.name}(${JSON.stringify(event.toolCall.arguments)})`)
+    } else if (event.type === 'tool_call_complete') {
+      if (event.result.isError) {
+        console.log(`\x1b[31m[Tool Error]\x1b[0m ${event.result.error}`)
+      } else {
+        console.log(`\x1b[32m[Tool Result]\x1b[0m ${event.result.output?.slice(0, 200)}`)
+      }
+    } else if (event.type === 'status_change') {
+      if (event.message) {
+        console.log(`\x1b[90m[Status: ${event.status}]\x1b[0m ${event.message}`)
+      }
+    }
+  }
+  console.log('\n\x1b[32m[Done]\x1b[0m\n')
+}
+
+if (prompt) {
+  await runPrompt(prompt)
+} else {
+  console.log('\x1b[1mAntigravity CLI Agent (1:1 with Claude Code)\x1b[0m')
+  console.log('Type a prompt or "exit" to quit.\n')
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+  const ask = () => {
+    rl.question('\x1b[36magent>\x1b[0m ', async (line) => {
+      const trimmed = line.trim()
+      if (trimmed === 'exit' || trimmed === 'quit') {
+        rl.close()
+        process.exit(0)
+      }
+      if (trimmed) {
+        await runPrompt(trimmed)
+      }
+      ask()
+    })
+  }
+  ask()
+}
