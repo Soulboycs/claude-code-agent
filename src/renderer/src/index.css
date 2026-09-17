@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
-/* Custom scrollbars */
+/* Custom scrollbars - Light & Minimalist */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -15,11 +15,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.12);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .draggable-area {
@@ -30,10 +30,10 @@
   -webkit-app-region: no-drag;
 }
 
-/* Nexus Markdown Styles */
+/* Nexus Markdown Styles - Antigravity Light & Clean */
 .nexus-markdown {
-  color: #e5e7eb;
-  line-height: 1.65;
+  color: #262626;
+  line-height: 1.68;
   font-size: 0.875rem;
   word-break: break-word;
 }
@@ -48,6 +48,7 @@
 .nexus-markdown p {
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
+  color: #262626;
 }
 
 .nexus-markdown h1,
@@ -56,15 +57,15 @@
 .nexus-markdown h4,
 .nexus-markdown h5,
 .nexus-markdown h6 {
-  color: #f3f4f6;
+  color: #111827;
   font-weight: 600;
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
   line-height: 1.35;
 }
 
-.nexus-markdown h1 { font-size: 1.25rem; border-bottom: 1px solid #262833; padding-bottom: 0.35rem; }
-.nexus-markdown h2 { font-size: 1.125rem; border-bottom: 1px solid #262833; padding-bottom: 0.25rem; }
+.nexus-markdown h1 { font-size: 1.25rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.35rem; }
+.nexus-markdown h2 { font-size: 1.125rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25rem; }
 .nexus-markdown h3 { font-size: 1rem; }
 .nexus-markdown h4 { font-size: 0.875rem; }
 
@@ -73,6 +74,7 @@
   padding-left: 1.25rem;
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
+  color: #374151;
 }
 
 .nexus-markdown ol {
@@ -80,6 +82,7 @@
   padding-left: 1.25rem;
   margin-top: 0.5rem;
   margin-bottom: 0.5rem;
+  color: #374151;
 }
 
 .nexus-markdown li {
@@ -93,22 +96,22 @@
 }
 
 .nexus-markdown blockquote {
-  border-left: 3px solid #3b82f6;
+  border-left: 3px solid #2563eb;
   padding: 0.35rem 0.75rem;
   margin: 0.5rem 0;
-  color: #9ca3af;
-  background: rgba(59, 130, 246, 0.06);
+  color: #4b5563;
+  background: rgba(37, 99, 235, 0.04);
   border-radius: 0 6px 6px 0;
 }
 
 .nexus-markdown code:not(pre code) {
-  background-color: #22242d;
-  color: #93c5fd;
+  background-color: #f3f4f6;
+  color: #1f2937;
   padding: 0.15rem 0.35rem;
   border-radius: 0.25rem;
   font-size: 0.825em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  border: 1px solid #2e313d;
+  border: 1px solid #e5e7eb;
 }
 
 .nexus-markdown table {
@@ -116,7 +119,7 @@
   border-collapse: collapse;
   margin: 0.75rem 0;
   font-size: 0.8125rem;
-  border: 1px solid #262833;
+  border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
   overflow: hidden;
 }
@@ -124,36 +127,37 @@
 .nexus-markdown th,
 .nexus-markdown td {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #262833;
+  border: 1px solid #e5e7eb;
   text-align: left;
 }
 
 .nexus-markdown th {
-  background-color: #1a1b22;
+  background-color: #f9fafb;
   font-weight: 600;
-  color: #f3f4f6;
+  color: #111827;
 }
 
 .nexus-markdown tr:nth-child(even) {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: rgba(0, 0, 0, 0.015);
 }
 
 .nexus-markdown tr:hover {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 .nexus-markdown a {
-  color: #60a5fa;
+  color: #2563eb;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .nexus-markdown a:hover {
-  color: #93c5fd;
+  color: #1d4ed8;
 }
 
 .nexus-markdown hr {
   border: none;
-  border-top: 1px solid #262833;
+  border-top: 1px solid #e5e7eb;
   margin: 1.25rem 0;
 }
+

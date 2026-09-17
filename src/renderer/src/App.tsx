@@ -5,25 +5,31 @@ import {
   ApprovalRequest,
   FileTreeNode
 } from '@shared/types'
-import { Header } from './components/Header'
+import { AntigravityTopBar } from './components/AntigravityTopBar'
 import { Sidebar } from './components/Sidebar'
 import { ChatTimeline } from './components/ChatTimeline'
 import { ApprovalCard } from './components/ApprovalCard'
 import { TerminalView } from './components/TerminalView'
 import { SettingsModal } from './components/SettingsModal'
-import { CornerDownLeft, Sparkles } from 'lucide-react'
+import { FloatingInputDock } from './components/FloatingInputDock'
+import { Sparkles, Cloud } from 'lucide-react'
 import { createInitialChatState, chatReducer } from './utils/chatReducer'
 import { createScrollFollower, ScrollFollower } from './utils/scrollFollower'
 
 export default function App() {
   const [workspace, setWorkspace] = useState<string>('')
-  const [files, setFiles] = useState<FileTreeNode[]>([])
-  const [isFilesLoading, setIsFilesLoading] = useState<boolean>(false)
+  const [, setFiles] = useState<FileTreeNode[]>([])
 
   const [status, setStatus] = useState<AgentStatus>('idle')
-  const [statusMessage, setStatusMessage] = useState<string>('')
+  const [, setStatusMessage] = useState<string>('')
   const [promptInput, setPromptInput] = useState<string>('')
   const [currentModelId, setCurrentModelId] = useState<string>('')
+
+  // Projects & Navigation state (Matching Antigravity screenshot)
+  const [currentProject, setCurrentProject] = useState<string>('Agent')
+  const [currentConversationTitle, setCurrentConversationTitle] = useState<string>('AI Agent Reference Projects')
+  const [currentConversationId, setCurrentConversationId] = useState<string>('conv_1')
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true)
 
   // Single source of truth for chat messages & active turn via pure tested chatReducer
   const [chatState, dispatchChat] = useReducer(chatReducer, undefined, createInitialChatState)
@@ -39,13 +45,10 @@ export default function App() {
   const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollFollowerRef = useRef<ScrollFollower | null>(null)
 
-  // Smart follow: input-source based (wheel-up / scrollbar drag / nav keys stop
-  // following; returning to bottom resumes). Position heuristics never disable
-  // following, so programmatic scrolls and streaming growth cannot be misread.
+  // Smart follow: input-source based
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
@@ -61,12 +64,11 @@ export default function App() {
   const refreshFiles = useCallback(async (dir?: string) => {
     const targetDir = dir || workspaceRef.current
     if (!targetDir) return
-    setIsFilesLoading(true)
     try {
       const tree = await window.electronAPI?.readWorkspaceFiles?.(targetDir)
       if (tree) setFiles(tree)
-    } finally {
-      setIsFilesLoading(false)
+    } catch (e) {
+      console.error('Failed to refresh files:', e)
     }
   }, [])
 
@@ -100,7 +102,6 @@ export default function App() {
           refreshFiles()
         }
       } else if (event.type === 'tool_call_complete') {
-        // Refresh file tree if filesystem modification occurred
         if (
           event.result.name.includes('file') ||
           event.result.name === 'run_command'
@@ -123,19 +124,9 @@ export default function App() {
   }, [refreshFiles])
 
   // Smart Auto-scroll: follow stream growth with an instant bottom snap.
-  // Direct scrollTop assignment (post-commit) — no smooth animation, so there
-  // are no mid-flight scroll events to misinterpret as user scroll-up.
   useEffect(() => {
     scrollFollowerRef.current?.follow()
   }, [messages, pendingApproval])
-
-  const handleSelectWorkspace = async () => {
-    const chosen = await window.electronAPI?.selectWorkspaceFolder?.()
-    if (chosen) {
-      setWorkspace(chosen)
-      refreshFiles(chosen)
-    }
-  }
 
   const handleSendMessage = async () => {
     const prompt = promptInput.trim()
@@ -155,9 +146,6 @@ export default function App() {
     })
 
     setPromptInput('')
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-    }
 
     try {
       await window.electronAPI?.sendMessage?.(prompt, workspaceRef.current || undefined)
@@ -183,68 +171,71 @@ export default function App() {
     await window.electronAPI?.respondApproval?.(id, approved, reason)
   }
 
-  const handleAbort = async () => {
-    await window.electronAPI?.abortAgent?.()
-    dispatchChat({ type: 'status_change', status: 'idle' })
-    setStatus('idle')
+  const handleScrollToBottom = () => {
+    scrollFollowerRef.current?.forceFollow()
   }
 
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setPromptInput(e.target.value)
-    e.target.style.height = 'auto'
-    e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`
+  const handleSelectConversation = (id: string, title: string, projectName: string) => {
+    setCurrentConversationId(id)
+    setCurrentConversationTitle(title)
+    setCurrentProject(projectName)
+  }
+
+  const handleNewConversation = () => {
+    dispatchChat({ type: 'status_change', status: 'idle' })
+    setCurrentConversationId(`conv_${Date.now()}`)
+    setCurrentConversationTitle('New Conversation')
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#121316] text-[#f3f4f6]">
-      {/* Top Header */}
-      <Header
-        workspace={workspace}
-        status={status}
-        statusMessage={statusMessage}
-        currentModelId={currentModelId}
-        onModelChange={(id) => setCurrentModelId(id)}
-        onSelectWorkspace={handleSelectWorkspace}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onAbort={handleAbort}
-        onToggleTerminal={() => setIsTerminalOpen(!isTerminalOpen)}
-        isTerminalOpen={isTerminalOpen}
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-white text-neutral-900 font-sans select-text antialiased">
+      {/* Top Application Menubar and Breadcrumbs (1:1 Antigravity) */}
+      <AntigravityTopBar
+        currentProject={currentProject}
+        currentConversationTitle={currentConversationTitle}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        isSidebarOpen={isSidebarOpen}
       />
 
-      {/* Main Workspace Area */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left File Tree Sidebar */}
-        <Sidebar
-          files={files}
-          isLoading={isFilesLoading}
-          onRefresh={() => refreshFiles()}
-        />
+      {/* Main Workspace Body */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Left Antigravity Projects & Conversations Sidebar */}
+        {isSidebarOpen && (
+          <Sidebar
+            currentConversationId={currentConversationId}
+            onSelectConversation={handleSelectConversation}
+            onNewConversation={handleNewConversation}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+          />
+        )}
 
-        {/* Center Chat & Agent Timeline */}
-        <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#121316]">
-          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
+        {/* Center Main Content Canvas */}
+        <main className="flex-1 flex flex-col h-full overflow-hidden bg-white relative">
+          {/* Scrollable Chat Area */}
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
             {messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-4 shadow-inner">
+              <div className="h-full flex flex-col items-center justify-center p-8 text-center max-w-xl mx-auto">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 mb-4 shadow-xs">
                   <Sparkles className="w-6 h-6" />
                 </div>
-                <h2 className="text-base font-semibold text-neutral-100 mb-1">
+                <h2 className="text-lg font-semibold text-neutral-900 mb-1.5">
                   How can I help you code today?
                 </h2>
-                <p className="text-xs text-neutral-400 max-w-sm mb-6">
-                  I can read and edit your code, execute shell commands, run test suites, and build features autonomously.
+                <p className="text-xs text-neutral-500 max-w-sm mb-6 leading-relaxed">
+                  I can inspect and edit your codebase, execute commands, run tests, and architect systems autonomously.
                 </p>
-                <div className="grid grid-cols-2 gap-2 max-w-md w-full text-left">
+                <div className="grid grid-cols-2 gap-2.5 w-full text-left">
                   {[
                     'Explain the project architecture',
-                    'Write a test suite for the main API',
-                    'Refactor file utilities for error resilience',
-                    'Scan for security issues and dependencies'
+                    'Write an automated test suite',
+                    'Refactor utilities for error resilience',
+                    'Scan for security vulnerabilities'
                   ].map((tip) => (
                     <button
                       key={tip}
+                      type="button"
                       onClick={() => setPromptInput(tip)}
-                      className="p-2.5 rounded-lg bg-[#181921] hover:bg-[#20222d] border border-[#262836] text-xs text-neutral-300 hover:text-white transition-all text-left truncate"
+                      className="p-3 rounded-xl bg-neutral-50 hover:bg-neutral-100 border border-neutral-200/80 text-xs text-neutral-700 hover:text-neutral-900 transition-all text-left truncate shadow-2xs"
                     >
                       {tip}
                     </button>
@@ -253,49 +244,45 @@ export default function App() {
               </div>
             )}
 
-            {/* Unified, Idempotent Chat Messages Timeline */}
+            {/* Unified Chat Timeline */}
             <ChatTimeline messages={messages} />
 
             {/* Human-in-the-loop Approval Card */}
             {pendingApproval && (
-              <div className="px-6 pb-6">
+              <div className="max-w-4xl mx-auto px-6 pb-4">
                 <ApprovalCard request={pendingApproval} onRespond={handleApprovalRespond} />
               </div>
             )}
           </div>
 
-          {/* Bottom Embedded Terminal */}
-          <TerminalView isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} />
-
-          {/* Bottom Chat Input Prompt Box */}
-          <div className="p-4 bg-[#14151b] border-t border-[#22232a]">
-            <div className="relative rounded-xl bg-[#1a1b22] border border-[#2b2d38] focus-within:border-blue-500/80 transition-all shadow-lg">
-              <textarea
-                ref={textareaRef}
-                value={promptInput}
-                onChange={handleTextareaChange}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                placeholder="Ask the Agent to write code, debug issues, or execute commands... (Enter to send, Shift+Enter for newline)"
-                className="w-full bg-transparent px-4 py-3 text-sm text-white placeholder-neutral-500 focus:outline-none resize-none max-h-44"
-              />
-
-              <div className="h-10 px-3 flex items-center justify-between border-t border-[#24252f] text-xs text-neutral-400">
-                <span className="text-[11px] text-neutral-500 font-mono">
-                  {workspace ? `Workspace: ${workspace.split(/[\\/]/).pop()}` : 'No workspace selected'}
-                </span>
-
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!promptInput.trim() || status === 'thinking' || status === 'tool_executing'}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white font-medium text-xs shadow transition-colors"
-                >
-                  <span>Send</span>
-                  <CornerDownLeft className="w-3 h-3" />
-                </button>
-              </div>
+          {/* Right Floating Rail Badges (Origami Bird / Cloud status) */}
+          <div className="absolute right-6 top-1/3 flex flex-col items-center gap-3 select-none z-20 pointer-events-auto">
+            <button
+              type="button"
+              className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow-md hover:shadow-lg transition-all hover:scale-105"
+              title="Antigravity Agent"
+            >
+              <Sparkles className="w-4 h-4 fill-white" />
+            </button>
+            <div className="p-1.5 rounded-lg bg-white/90 border border-neutral-200/80 shadow-xs flex items-center justify-center text-neutral-400">
+              <Cloud className="w-3.5 h-3.5 text-blue-500" />
             </div>
           </div>
+
+          {/* Bottom Floating Input Dock (1:1 Antigravity) */}
+          <FloatingInputDock
+            promptInput={promptInput}
+            onChange={(e) => setPromptInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onSend={handleSendMessage}
+            onScrollToBottom={handleScrollToBottom}
+            currentModelId={currentModelId}
+            onModelChange={(id) => setCurrentModelId(id)}
+            status={status}
+          />
+
+          {/* Bottom Embedded Terminal Drawer */}
+          <TerminalView isOpen={isTerminalOpen} onClose={() => setIsTerminalOpen(false)} />
         </main>
       </div>
 

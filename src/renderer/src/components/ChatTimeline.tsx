@@ -14,6 +14,12 @@ interface ChatTimelineProps {
   messages: ChatMessage[]
 }
 
+function extractUserTitle(content: string): string {
+  if (!content) return 'User Request'
+  const firstLine = content.trim().split('\n')[0].trim()
+  return firstLine.length > 60 ? `${firstLine.slice(0, 60)}...` : firstLine
+}
+
 export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
   const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({})
   const [expandedTools, setExpandedTools] = useState<Record<string, boolean>>({})
@@ -27,7 +33,7 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+    <div className="w-full max-w-4xl mx-auto px-6 py-4 space-y-6">
       {messages.map((msg) => {
         // Auto-expand thinking while actively streaming thinking
         const isThinkingExpanded =
@@ -36,44 +42,49 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
             : !!(msg.isStreaming && msg.thinking && !msg.content)
 
         return (
-          <div key={msg.id} className="space-y-3">
-            {/* User Message */}
+          <div key={msg.id} className="space-y-4">
+            {/* User Request Card - 1:1 matching Antigravity light card */}
             {msg.role === 'user' && (
-              <div className="flex justify-end">
-                <div className="max-w-2xl bg-blue-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm shadow-md whitespace-pre-wrap leading-relaxed">
-                  {msg.content}
+              <div className="bg-[#f9fafb] border border-neutral-200/90 rounded-xl p-4 shadow-[0_1px_2px_rgba(0,0,0,0.03)] text-neutral-900 transition-all">
+                <div className="text-sm font-semibold text-neutral-900 mb-2 select-text">
+                  {extractUserTitle(msg.content)}
                 </div>
+                {msg.content.trim().split('\n').length > 1 && (
+                  <div className="font-mono text-xs text-neutral-700 whitespace-pre-wrap leading-relaxed select-text pt-1 border-t border-neutral-200/60">
+                    {msg.content}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Assistant Message */}
+            {/* Assistant Message - Clean White Canvas Typography */}
             {msg.role === 'assistant' && (
               <div className="space-y-3">
                 {/* Thinking block if present */}
                 {msg.thinking && (
-                  <div className="border border-neutral-800 bg-[#16171c] rounded-lg overflow-hidden text-xs">
+                  <div className="border border-neutral-200/90 bg-[#fbfbfb] rounded-lg overflow-hidden text-xs">
                     <div
                       onClick={() => toggleThinking(msg.id)}
-                      className="flex items-center justify-between px-3 py-2 bg-[#1a1b22] hover:bg-[#20212b] cursor-pointer select-none text-neutral-400 hover:text-neutral-200 transition-colors"
+                      className="flex items-center justify-between px-3 py-2 bg-[#f8f9fa] hover:bg-neutral-100 cursor-pointer select-none text-neutral-600 transition-colors"
                     >
                       <div className="flex items-center gap-1.5">
                         <Brain
-                          className={`w-3.5 h-3.5 text-amber-400 ${
+                          className={`w-3.5 h-3.5 text-amber-500 ${
                             msg.isStreaming && !msg.content ? 'animate-pulse' : ''
                           }`}
                         />
-                        <span className="font-semibold text-neutral-300">
+                        <span className="font-medium text-neutral-700 text-xs">
                           {msg.isStreaming && !msg.content ? 'Agent Thinking...' : 'Thought Process'}
                         </span>
                       </div>
                       {isThinkingExpanded ? (
-                        <ChevronDown className="w-3.5 h-3.5 text-neutral-500" />
+                        <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
                       ) : (
-                        <ChevronRight className="w-3.5 h-3.5 text-neutral-500" />
+                        <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
                       )}
                     </div>
                     {isThinkingExpanded && (
-                      <div className="p-3 text-neutral-400 font-mono text-[11px] whitespace-pre-wrap leading-relaxed border-t border-neutral-800/60 bg-[#121316]">
+                      <div className="p-3 text-neutral-600 font-mono text-[11px] whitespace-pre-wrap leading-relaxed border-t border-neutral-200/70 bg-white">
                         <StreamingText
                           content={msg.thinking || ''}
                           isStreaming={!!(msg.isStreaming && !msg.content)}
@@ -94,60 +105,60 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
                       return (
                         <div
                           key={tc.id}
-                          className="border border-neutral-800 bg-[#16171b] rounded-lg overflow-hidden text-xs"
+                          className="border border-neutral-200/90 bg-[#fafafa] rounded-lg overflow-hidden text-xs"
                         >
                           <div
                             onClick={() => toggleTool(tc.id)}
-                            className="flex items-center justify-between px-3 py-2 hover:bg-[#1e1f26] cursor-pointer transition-colors"
+                            className="flex items-center justify-between px-3 py-2 hover:bg-neutral-100/80 cursor-pointer transition-colors"
                           >
                             <div className="flex items-center gap-2">
                               {isRunning ? (
-                                <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />
+                                <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
                               ) : result && result.isError ? (
-                                <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
                               ) : (
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                               )}
-                              <span className="font-mono font-medium text-neutral-200">{tc.name}</span>
-                              <span className="text-[10px] text-neutral-500">
+                              <span className="font-mono font-medium text-neutral-800">{tc.name}</span>
+                              <span className="text-[10px] text-neutral-400">
                                 {isRunning ? 'Executing...' : result?.isError ? 'Failed' : 'Completed'}
                               </span>
                             </div>
                             {isExpanded ? (
-                              <ChevronDown className="w-3.5 h-3.5 text-neutral-500" />
+                              <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
                             ) : (
-                              <ChevronRight className="w-3.5 h-3.5 text-neutral-500" />
+                              <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
                             )}
                           </div>
 
                           {isExpanded && (
-                            <div className="p-3 border-t border-neutral-800 bg-[#121316] space-y-2">
+                            <div className="p-3 border-t border-neutral-200 bg-white space-y-2">
                               <div>
-                                <div className="text-[10px] uppercase font-semibold text-neutral-500 mb-1">
+                                <div className="text-[10px] uppercase font-semibold text-neutral-400 mb-1">
                                   Arguments:
                                 </div>
-                                <pre className="text-neutral-300 font-mono text-[11px] bg-black/40 p-2 rounded overflow-x-auto">
+                                <pre className="text-neutral-700 font-mono text-[11px] bg-neutral-50 border border-neutral-200 p-2 rounded overflow-x-auto">
                                   {JSON.stringify(tc.arguments, null, 2)}
                                 </pre>
                               </div>
 
                               {(tc.name === 'write_to_file' || tc.name === 'replace_file_content') && (
                                 <div className="mt-2">
-                                  <div className="text-[10px] uppercase font-semibold text-neutral-500 mb-1">
+                                  <div className="text-[10px] uppercase font-semibold text-neutral-400 mb-1">
                                     {tc.name === 'write_to_file' ? 'File Content Preview' : 'Diff Preview'} (
                                     {String((tc.arguments as any)?.filePath || (tc.arguments as any)?.path || '')}
                                     ):
                                   </div>
                                   {tc.name === 'write_to_file' ? (
-                                    <pre className="text-neutral-300 font-mono text-[11px] bg-black/40 p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                                    <pre className="text-neutral-700 font-mono text-[11px] bg-neutral-50 border border-neutral-200 p-2 rounded overflow-x-auto whitespace-pre-wrap">
                                       {String((tc.arguments as any)?.content || '')}
                                     </pre>
                                   ) : (
                                     <div className="flex flex-col gap-1">
-                                      <pre className="text-rose-400 bg-rose-950/20 font-mono text-[11px] p-2 rounded overflow-x-auto whitespace-pre-wrap opacity-80">
+                                      <pre className="text-rose-600 bg-rose-50 border border-rose-200 font-mono text-[11px] p-2 rounded overflow-x-auto whitespace-pre-wrap">
                                         - {String((tc.arguments as any)?.targetContent || '')}
                                       </pre>
-                                      <pre className="text-emerald-400 bg-emerald-950/20 font-mono text-[11px] p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                                      <pre className="text-emerald-600 bg-emerald-50 border border-emerald-200 font-mono text-[11px] p-2 rounded overflow-x-auto whitespace-pre-wrap">
                                         + {String((tc.arguments as any)?.replacementContent || '')}
                                       </pre>
                                     </div>
@@ -157,14 +168,14 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
 
                               {result && (
                                 <div>
-                                  <div className="text-[10px] uppercase font-semibold text-neutral-500 mb-1">
+                                  <div className="text-[10px] uppercase font-semibold text-neutral-400 mb-1">
                                     Result:
                                   </div>
                                   <pre
                                     className={`font-mono text-[11px] p-2 rounded overflow-x-auto ${
                                       result.isError
-                                        ? 'text-rose-400 bg-rose-950/20 border border-rose-900/40'
-                                        : 'text-neutral-300 bg-black/40'
+                                        ? 'text-rose-600 bg-rose-50 border border-rose-200'
+                                        : 'text-neutral-700 bg-neutral-50 border border-neutral-200'
                                     }`}
                                   >
                                     {result.isError ? result.error : result.output}
@@ -179,9 +190,9 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
                   </div>
                 )}
 
-                {/* Message Content with in-place smooth typewriter streaming and rich Markdown */}
+                {/* Message Content with in-place smooth typewriter streaming and rich Markdown on White Canvas */}
                 {(msg.content || (msg.isStreaming && !msg.thinking && (!msg.toolCalls || msg.toolCalls.length === 0))) && (
-                  <div className="bg-[#18191f] border border-[#262833] rounded-2xl rounded-tl-sm p-4 text-sm text-neutral-200 shadow-sm leading-relaxed break-words">
+                  <div className="text-sm text-neutral-800 leading-relaxed py-1">
                     <StreamingText
                       content={msg.content || ''}
                       isStreaming={!!msg.isStreaming}
@@ -196,3 +207,4 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
     </div>
   )
 }
+
