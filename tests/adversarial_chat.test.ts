@@ -417,3 +417,81 @@ describe('Adversarial Boundary Tests: 6. 非侵入工作区契约 (Non-intrusive
     })
   })
 })
+
+describe('Adversarial Boundary Tests: 7. 极限边界注入与超大代码块洪峰 (Extreme Boundary Injections & Shock Burst)', () => {
+  it('safely handles empty strings and dirty delta injections without corrupting message state', () => {
+    let state = createInitialChatState()
+    state = startUserTurn(state, 'Dirty input prompt', 'turn_dirty_1')
+
+    // Empty delta injection
+    state = chatReducer(state, { type: 'message_delta', delta: '' })
+    state = chatReducer(state, { type: 'thinking_delta', delta: '' })
+
+    let asst = state.messages.find(m => m.id === 'turn_dirty_1')!
+    expect(asst.content).toBe('')
+    expect(asst.thinking).toBe('')
+
+    // Whitespace and escape characters
+    state = chatReducer(state, { type: 'message_delta', delta: '   \n\t\r\0   ' })
+    asst = state.messages.find(m => m.id === 'turn_dirty_1')!
+    expect(asst.content).toBe('   \n\t\r\0   ')
+
+    // Valid continuation
+    state = chatReducer(state, { type: 'message_delta', delta: 'Valid Text' })
+    asst = state.messages.find(m => m.id === 'turn_dirty_1')!
+    expect(asst.content).toBe('   \n\t\r\0   Valid Text')
+  })
+
+  it('handles 10,000-character colossal code block shock burst in StreamPacer with bounded frames and zero corruption', () => {
+    const { StreamPacer } = require('../src/renderer/src/utils/streamPacer')
+    const pacer = new StreamPacer()
+
+    // Generate 10,000 chars of code
+    const line = 'function processStreamBlock(index: number): boolean { return index > 0; }\n'
+    const colossalCode = line.repeat(140) // ~10,360 chars
+    expect(colossalCode.length).toBeGreaterThanOrEqual(10000)
+
+    pacer.setTarget(colossalCode)
+
+    // First frame consumes large chunk under emergency backpressure
+    const frame1 = pacer.step(16)
+    expect(frame1.length).toBeGreaterThanOrEqual(20)
+
+    // Drain under adaptive backpressure
+    let frames = 1
+    while (!pacer.isDone() && frames < 80) {
+      pacer.step(16)
+      frames++
+    }
+
+    // Must catch up within <= 50 frames (~800ms) for 10,000 characters
+    expect(frames).toBeLessThan(50)
+    expect(pacer.getDisplayed()).toBe(colossalCode)
+    expect(pacer.getDisplayed().length).toBe(colossalCode.length)
+  })
+
+  it('prevents race conditions and state corruption under extreme concurrent startUserTurn spamming', () => {
+    let state = createInitialChatState()
+
+    // Simulate 50 rapid concurrent turn dispatches
+    for (let i = 0; i < 50; i++) {
+      state = startUserTurn(state, `Prompt ${i}`, `turn_race_${i}`)
+    }
+
+    // Total messages = 50 user + 50 assistant = 100 messages
+    expect(state.messages.length).toBe(100)
+    // Only the very last turn should be active and streaming
+    expect(state.activeTurnId).toBe('turn_race_49')
+
+    const lastAsst = state.messages.find(m => m.id === 'turn_race_49')!
+    expect(lastAsst.isStreaming).toBe(true)
+
+    // All prior assistant messages must be defensively sealed (isStreaming === false)
+    const priorAssts = state.messages.filter(m => m.role === 'assistant' && m.id !== 'turn_race_49')
+    expect(priorAssts.length).toBe(49)
+    for (const pa of priorAssts) {
+      expect(pa.isStreaming).toBe(false)
+    }
+  })
+})
+

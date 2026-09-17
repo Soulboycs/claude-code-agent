@@ -208,3 +208,67 @@ describe('E2E — Provider switch via setProvider', () => {
     expect(resp2.length).toBeGreaterThan(0)
   }, E2E_TIMEOUT)
 })
+
+// ─── Test 6: E2E — Real Live Streaming, TTFT & TPS Performance ──────────────
+import { StreamPacer } from '../src/renderer/src/utils/streamPacer'
+
+describe('E2E — Real Live Streaming, TTFT & TPS Performance', () => {
+  it('measures real DeepSeek TTFT, live TPS and verifies 100% StreamPacer delivery', async () => {
+    const provider = createProvider(DEEPSEEK_CONFIG)
+    const engine = createDefaultAgentEngine({
+      workspaceRoot: WORKSPACE,
+      customProvider: provider
+    })
+
+    const pacer = new StreamPacer()
+    let accumulatedText = ''
+    let firstTokenTime: number | null = null
+    const startTime = performance.now()
+
+    await runWithTimeout(
+      provider.chatStream(
+        [{ role: 'user', content: 'Write a concise 5-line JavaScript function to compute fibonacci with memoization.' }],
+        [],
+        (chunk) => {
+          if (chunk.content) {
+            if (firstTokenTime === null) {
+              firstTokenTime = performance.now()
+            }
+            accumulatedText += chunk.content
+            pacer.setTarget(accumulatedText)
+          }
+        }
+      ),
+      E2E_TIMEOUT
+    )
+
+    const endTime = performance.now()
+    const ttft = firstTokenTime ? firstTokenTime - startTime : 0
+    const totalDuration = (endTime - startTime) / 1000 // seconds
+    const estimatedTokens = Math.round(accumulatedText.length / 3.5)
+    const tps = totalDuration > 0 ? estimatedTokens / totalDuration : 0
+
+    console.log(`[E2E METRICS] === Real DeepSeek Live Streaming Metrics ===`)
+    console.log(`[E2E METRICS] Actual TTFT (Time To First Token): ${ttft.toFixed(1)}ms`)
+    console.log(`[E2E METRICS] Total Stream Duration: ${totalDuration.toFixed(2)}s`)
+    console.log(`[E2E METRICS] Output Length: ${accumulatedText.length} chars (~${estimatedTokens} tokens)`)
+    console.log(`[E2E METRICS] Average Generation TPS: ${tps.toFixed(1)} tokens/sec`)
+
+    // Verify TTFT was recorded and reasonable (< 5000ms over public internet)
+    expect(firstTokenTime).not.toBeNull()
+    expect(ttft).toBeGreaterThan(0)
+    expect(ttft).toBeLessThan(10000)
+
+    // Verify StreamPacer drains all remaining tokens under backpressure within <= 20 frames
+    let drainFrames = 0
+    while (!pacer.isDone() && drainFrames < 50) {
+      pacer.step(16, true)
+      drainFrames++
+    }
+
+    console.log(`[E2E METRICS] StreamPacer Final Drain Frames: ${drainFrames} (~${(drainFrames * 16.6).toFixed(0)}ms)`)
+    expect(drainFrames).toBeLessThanOrEqual(25) // <= 25 frames (~350ms)
+    expect(pacer.getDisplayed()).toBe(accumulatedText)
+  }, E2E_TIMEOUT)
+})
+

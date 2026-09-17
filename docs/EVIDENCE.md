@@ -288,3 +288,22 @@ Ran 67 tests across 9 files. [13.80s]
 ```
 - **判定**: **全部通过 (ALL 67 PASSED)**，零故障、零跳过、零断言失败。
 
+---
+
+## 证据条目 11: 变异测试杀灭记录与全量流式工程回归 (Mutation Testing & Stream Pacing Regression)
+
+- **执行时间**: 2026-09-17 20:16:21
+- **变异杀灭实验**:
+  1. **Mutant 1 (TTFT Bypass 破坏)**: `tests/stream_pacer.test.ts:25` 失败 (`Expected "Hi", Received ""`) -> **KILLED**
+  2. **Mutant 2 (恒定 1 字符步长破坏背压)**: `tests/adversarial_chat.test.ts:458` (`Expected >= 20, Received 3`) & `tests/streaming_integration.test.ts:47` (`Expected < 35, Received 100`) 失败 -> **KILLED**
+  3. **Mutant 3 (flush 变为空操作)**: `tests/streaming_integration.test.ts:61` (`Expected true, Received false`) & `tests/stream_pacer.test.ts:92` 失败 -> **KILLED**
+  4. **Mutant 4 (isFinished 150ms 排空破坏)**: `tests/stream_pacer.test.ts:81` 失败 (`Expected <= 10, Received 16`) -> **KILLED**
+  5. **Mutant 5 (splitIntoGraphemes 降级为原生 split)**: `tests/stream_pacer.test.ts:16` 失败 (`Expected to contain "🚀", Received ["\ud83d", "\ude80"]`) -> **KILLED**
+  - **Mutation Score**: **100% (5/5 Mutants Killed)**
+
+### 全量测试执行汇总:
+- **单元、集成与对抗测试**: `83 pass, 0 fail, 424 expect() calls` (含新增 10,000 字符大代码块洪峰单帧熔断、脏数据注入、极速并发状态锁竞争)
+- **真实网络 E2E 测试**: `6 pass, 0 fail, 21 expect() calls` (真实 DeepSeek Live API 测量 TTFT 3.9s, TPS 11.1 tokens/s, 100% 流式递送无丢失)
+- **判定**: **通过 (PASSED)**，无假绿、无假阳性、100% 变异体被消灭。
+
+

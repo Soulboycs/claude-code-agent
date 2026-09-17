@@ -12,8 +12,9 @@ describe('StreamPacer — TDD: 平滑打字机缓冲消费引擎', () => {
     const text = 'Hello 世界! 🚀👨‍👩‍👧‍👦'
     const graphemes = splitIntoGraphemes(text)
     expect(graphemes.join('')).toBe(text)
-    // Ensure emoji is a single unit, not split into dangling surrogates
+    // Ensure emoji is a single unit, not split into dangling surrogates or broken ZWJ sequences
     expect(graphemes).toContain('🚀')
+    expect(graphemes).toContain('👨‍👩‍👧‍👦')
     expect(graphemes).toContain('世')
     expect(graphemes).toContain('界')
   })

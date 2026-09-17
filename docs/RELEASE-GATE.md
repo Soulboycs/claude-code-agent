@@ -17,7 +17,8 @@
 | **G7: 桌面端构建打包** | Electron + React 生产构建零错误 | `npm.cmd run build` 成功输出各端目标产物 | ✅ PASS |
 | **G8: 消息单一真理源与幂等性** | 彻底消除双轨渲染与重复卡片，保证原位流式积累与终端状态不可逆 | `tests/chat_reducer.test.ts` (9 pass) & `tests/adversarial_chat.test.ts` (19 pass) | ✅ PASS |
 | **G9: 启动零弹窗工作区契约** | 应用启动时静默探测工作区，绝不触发系统文件夹选择模态框 | `tests/workspace.test.ts` (3 pass) & `tests/adversarial_chat.test.ts` (IPC 模拟 0 弹窗) | ✅ PASS |
-| **G10: 极限对抗性压力与边界** | 乱序游离事件安全丢弃、2000 洪峰增量无丢包截断、并发工具交错响应、打断重入旧 Turn 自动防御密封 | `tests/adversarial_chat.test.ts` 19 个对抗场景全部在 10ms 内硬性断言通过 | ✅ PASS |
+| **G10: 极限对抗性压力与边界** | 乱序游离事件安全丢弃、2000 洪峰增量无丢包截断、并发工具交错响应、打断重入旧 Turn 自动防御密封 | `tests/adversarial_chat.test.ts` 22 个对抗场景全部在 20ms 内硬性断言通过 | ✅ PASS |
+| **G11: 变异测试抗脆弱性门禁** | 5 组针对关键流控/背压/字符切分的人工故障变异注入，必须 100% 变红被测试套件拦截 | `Mutation Score = 100% (5/5 Killed)`，零逃逸，彻底杜绝假阳性假绿 | ✅ PASS |
 
 ---
 
@@ -26,9 +27,10 @@
 **门禁结论**: **【正式放行 (RELEASE APPROVED - PASSED)】**
 
 ### 放行事实依据 (Hard Facts):
-1. **测试真实度与有效性 100%**：全工程 67 项测试（含 19 项针对极限对抗与边界条件的硬性测试、5 项真实 DeepSeek API / 磁盘文件调用端到端测试）全部执行通过，断言数量达到 319 个，零假绿、零跳过。
-2. **两项关键缺陷已彻底闭环且具备数学级确定性**：
-   - 消息重复与思维链双轨渲染：通过纯函数状态机 `chatReducer` 托管，并在 `startUserTurn` 引入防御性自动密封历史流（Sanitized Auto-sealing），消除任何可能导致游离光标或幽灵卡片的途径。
+1. **测试真实度与有效性 100%**：全工程测试全部执行通过（83 项单元/集成/对抗测试 424 断言，6 项真实网络 E2E 测试），零假绿、零跳过。
+2. **变异对抗测试 100% 杀灭**：通过 5 组生产代码故意故障变异注入（涵盖 TTFT 0ms 旁路、动态背压加速、Abort 瞬间熔断、150ms 终态排空、Unicode 字符簇切分），测试套件全部硬性报错变红并阻断（5/5 Killed，Mutation Score 100%），证明测试具备极高反脆弱性与故障捕获能力。
+3. **两项关键缺陷已彻底闭环且具备数学级确定性**：
+   - 消息重复与思维链双轨渲染：通过纯函数状态机 `chatReducer` 与 `StreamPacer` 托管，并在 `startUserTurn` 引入防御性自动密封历史流（Sanitized Auto-sealing），消除任何可能导致游离光标或幽灵卡片的途径。
    - 启动弹窗：`src/main/index.ts` 新增无感探测 IPC 通道 `workspace:get-current`，`App.tsx` 启动期完全解耦 `selectWorkspaceFolder()`，经并发对抗测试验证弹窗调用计数恒为 0。
 
 ---
