@@ -71,7 +71,7 @@ echo "[+] Code tree synced at commit $CURRENT_REV: \"$COMMIT_MSG\""
 # 3. Production Dependencies Installation
 # -------------------------------------------------------------
 echo "[3/7] Installing production dependencies via Bun..."
-"$BUN_BIN" install --production
+"$BUN_BIN" install --production --no-frozen-lockfile --registry https://registry.npmmirror.com
 
 # -------------------------------------------------------------
 # 4. Package Latest Release Bundle for Web Download
