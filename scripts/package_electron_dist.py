@@ -62,15 +62,18 @@ def package_electron():
     PUBLIC_DOWNLOADS.mkdir(parents=True, exist_ok=True)
     zip_path = PUBLIC_DOWNLOADS / "NEXUS-AGENT-Windows-x64.zip"
 
-    # Zip with standard compression
+    # Zip without parent folder prefix — NEXUS-AGENT.exe lives at ZIP root
+    # Users extract and immediately double-click NEXUS-AGENT.exe to run
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for file_path in RELEASE_DIR.rglob("*"):
             if file_path.is_file():
-                rel_path = file_path.relative_to(RELEASE_DIR.parent)
+                # relative to RELEASE_DIR itself (not its parent) — no folder wrapper
+                rel_path = file_path.relative_to(RELEASE_DIR)
                 zf.write(file_path, rel_path)
 
     size_mb = zip_path.stat().st_size / (1024 * 1024)
     print(f"[+] Successfully generated desktop package: {zip_path} ({size_mb:.2f} MB)")
+    print(f"[+] ZIP structure: NEXUS-AGENT.exe is at root — extract and double-click to run")
 
 if __name__ == "__main__":
     package_electron()
