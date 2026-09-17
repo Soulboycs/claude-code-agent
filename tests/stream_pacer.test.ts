@@ -111,4 +111,57 @@ describe('StreamPacer — TDD: 平滑打字机缓冲消费引擎', () => {
     expect(pacer.isDone()).toBe(true)
     expect(pacer.getDisplayed()).toBe('Same text')
   })
+
+  it('resets all state completely via reset()', () => {
+    pacer.setTarget('Something to reset')
+    pacer.flush()
+    expect(pacer.getDisplayed()).toBe('Something to reset')
+    pacer.reset()
+    expect(pacer.getDisplayed()).toBe('')
+    expect(pacer.isDone()).toBe(true)
+  })
+
+  // ─── 2026-09-17 独立复审补测：封堵变异测试 M-A/M-B 暴露的覆盖缺口 ───
+
+  it('consumes EXACTLY 1 grapheme per frame in the true pending <= 6 band (typewriter floor)', () => {
+    // TTFT bypass shows the first 2 graphemes; appending 3 more puts pending = 3 (<= 6 band)
+    pacer.setTarget('Hi')
+    expect(pacer.getDisplayed()).toBe('Hi')
+    pacer.setTarget('Hi ab') // pending = 3 → 低缓冲极细节奏分支
+    const before = pacer.getDisplayed()
+    const after = pacer.step(16)
+    expect(after.length - before.length).toBe(1) // 单字/帧是计划承诺的打字机节奏下界
+    expect(after).toBe('Hi ')
+  })
+
+  it('setTarget replacement (non-append) re-seals displayed text to a prefix of the NEW target', () => {
+    pacer.setTarget('Original message text') // bypass 2 + one step (band 7-20 → 2)
+    pacer.step(16)
+    expect(pacer.getDisplayed()).toBe('Orig')
+
+    // 上游修正/截断：新文本不是旧文本的延伸 → 整体替换路径
+    pacer.setTarget('Corrected text')
+    expect(pacer.getDisplayed()).toBe('Corr') // 已展示部分必须重新锚定到新文本前缀，旧文本不得残留
+    expect('Corrected text'.startsWith(pacer.getDisplayed())).toBe(true)
+
+    // 截断到比已展示更短：displayedIndex 收敛且立即完成
+    pacer.flush()
+    pacer.setTarget('tiny')
+    expect(pacer.getDisplayed()).toBe('tiny')
+    expect(pacer.isDone()).toBe(true)
+  })
+
+  it('never renders the full target instantly mid-stream (anti-jump lower bound)', () => {
+    const target = 'X'.repeat(120)
+    pacer.setTarget(target)
+    const f1 = pacer.step(16)
+    const f2 = pacer.step(16)
+    const f3 = pacer.step(16)
+    // 下界：3 帧后仍在追赶 — 任何“直出/瞬刷”退化都被禁止
+    expect(f3.length).toBeLessThan(target.length)
+    // 上界：背压机制必须真实推进（洪峰加速）
+    expect(f1.length).toBeGreaterThan(2)
+    while (!pacer.isDone()) pacer.step(16)
+    expect(pacer.getDisplayed()).toBe(target)
+  })
 })
