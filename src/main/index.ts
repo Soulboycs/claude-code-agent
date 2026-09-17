@@ -122,9 +122,16 @@ function createWindow(): void {
 
   mainWindow.show()
   mainWindow.focus()
-  mainWindow.setAlwaysOnTop(true)
-  mainWindow.setAlwaysOnTop(false)
-  mainWindow.webContents.openDevTools({ mode: 'detach' })
+
+  mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
+    console.error('[LOAD FAILED]', errorCode, errorDescription, validatedURL)
+    existsSync && require('fs').appendFileSync('D:\\Agent\\electron_crash.log', `[LOAD_FAILED] ${errorCode} ${errorDescription} ${validatedURL}\n`)
+  })
+
+  mainWindow.webContents.on('render-process-gone', (_, details) => {
+    console.error('[RENDER PROCESS GONE]', details)
+    existsSync && require('fs').appendFileSync('D:\\Agent\\electron_crash.log', `[RENDER_GONE] ${JSON.stringify(details)}\n`)
+  })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
