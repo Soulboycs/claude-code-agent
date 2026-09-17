@@ -177,11 +177,12 @@ export class OpenAICompatibleProvider implements ILLMProvider {
                     name: tc.function?.name || '',
                     argsStr: ''
                   })
+                } else if (tc.function?.name && !toolCallsMap.get(index)!.name) {
+                  toolCallsMap.get(index)!.name = tc.function.name
                 }
 
                 const current = toolCallsMap.get(index)!
                 if (tc.id) current.id = tc.id
-                if (tc.function?.name) current.name += tc.function.name
                 if (tc.function?.arguments) current.argsStr += tc.function.arguments
 
                 onChunk({
