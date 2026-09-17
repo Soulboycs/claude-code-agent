@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ShieldAlert, Check, X, Terminal, FileEdit } from 'lucide-react'
+import { ShieldAlert, Check, X, Terminal } from 'lucide-react'
 import { ApprovalRequest } from '@shared/types'
 
 interface ApprovalCardProps {

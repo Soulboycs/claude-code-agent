@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { StreamPacer } from '../utils/streamPacer'
+import { MarkdownRenderer } from './MarkdownRenderer'
 
 interface StreamingTextProps {
   content: string
@@ -104,12 +105,12 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
   }, [isStreaming])
 
   return (
-    <span className={`inline ${className}`}>
-      {displayedText}
+    <div className={`relative ${className}`}>
+      <MarkdownRenderer content={displayedText} isStreaming={isStreaming} />
       {isStreaming && (
-        <>
+        <span className="inline-flex items-center ml-1 align-baseline">
           <span
-            className="inline-block w-1.5 h-3.5 bg-blue-400 ml-0.5 translate-y-0.5 animate-pulse rounded-sm opacity-90 shadow-sm"
+            className="inline-block w-1.5 h-3.5 bg-blue-400 translate-y-0.5 animate-pulse rounded-sm opacity-90 shadow-sm"
             style={{ willChange: 'opacity' }}
           />
           {isStalled && (
@@ -117,8 +118,9 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
               [Receiving...]
             </span>
           )}
-        </>
+        </span>
       )}
-    </span>
+    </div>
   )
 }
+

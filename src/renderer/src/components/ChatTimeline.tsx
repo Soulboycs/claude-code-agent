@@ -5,8 +5,7 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertCircle,
-  Loader2,
-  Wrench
+  Loader2
 } from 'lucide-react'
 import { ChatMessage } from '@shared/types'
 import { StreamingText } from './StreamingText'
@@ -180,9 +179,9 @@ export const ChatTimeline: React.FC<ChatTimelineProps> = ({ messages }) => {
                   </div>
                 )}
 
-                {/* Message Content with in-place smooth typewriter streaming */}
+                {/* Message Content with in-place smooth typewriter streaming and rich Markdown */}
                 {(msg.content || (msg.isStreaming && !msg.thinking && (!msg.toolCalls || msg.toolCalls.length === 0))) && (
-                  <div className="bg-[#18191f] border border-[#262833] rounded-2xl rounded-tl-sm p-4 text-sm text-neutral-200 shadow-sm leading-relaxed whitespace-pre-wrap">
+                  <div className="bg-[#18191f] border border-[#262833] rounded-2xl rounded-tl-sm p-4 text-sm text-neutral-200 shadow-sm leading-relaxed break-words">
                     <StreamingText
                       content={msg.content || ''}
                       isStreaming={!!msg.isStreaming}

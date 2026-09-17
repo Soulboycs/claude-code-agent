@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Key, Server, Cpu, Check, AlertCircle } from 'lucide-react'
+import { X, Cpu, Check, AlertCircle } from 'lucide-react'
 import { ProviderConfig } from '@shared/types'
 
 interface SettingsModalProps {

@@ -1,5 +1,5 @@
 import React from 'react'
-import { FolderOpen, Settings, Square, Play, Sparkles, Terminal } from 'lucide-react'
+import { FolderOpen, Settings, Square, Sparkles, Terminal } from 'lucide-react'
 import { AgentStatus } from '@shared/types'
 
 import { ModelSelector } from './ModelSelector'

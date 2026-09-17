@@ -29,3 +29,131 @@
 .non-draggable {
   -webkit-app-region: no-drag;
 }
+
+/* Nexus Markdown Styles */
+.nexus-markdown {
+  color: #e5e7eb;
+  line-height: 1.65;
+  font-size: 0.875rem;
+  word-break: break-word;
+}
+
+.nexus-markdown > *:first-child {
+  margin-top: 0;
+}
+.nexus-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.nexus-markdown p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.nexus-markdown h1,
+.nexus-markdown h2,
+.nexus-markdown h3,
+.nexus-markdown h4,
+.nexus-markdown h5,
+.nexus-markdown h6 {
+  color: #f3f4f6;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.35;
+}
+
+.nexus-markdown h1 { font-size: 1.25rem; border-bottom: 1px solid #262833; padding-bottom: 0.35rem; }
+.nexus-markdown h2 { font-size: 1.125rem; border-bottom: 1px solid #262833; padding-bottom: 0.25rem; }
+.nexus-markdown h3 { font-size: 1rem; }
+.nexus-markdown h4 { font-size: 0.875rem; }
+
+.nexus-markdown ul {
+  list-style-type: disc;
+  padding-left: 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.nexus-markdown ol {
+  list-style-type: decimal;
+  padding-left: 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.nexus-markdown li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.nexus-markdown li > p {
+  margin: 0;
+  display: inline;
+}
+
+.nexus-markdown blockquote {
+  border-left: 3px solid #3b82f6;
+  padding: 0.35rem 0.75rem;
+  margin: 0.5rem 0;
+  color: #9ca3af;
+  background: rgba(59, 130, 246, 0.06);
+  border-radius: 0 6px 6px 0;
+}
+
+.nexus-markdown code:not(pre code) {
+  background-color: #22242d;
+  color: #93c5fd;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.825em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  border: 1px solid #2e313d;
+}
+
+.nexus-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 0.8125rem;
+  border: 1px solid #262833;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.nexus-markdown th,
+.nexus-markdown td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #262833;
+  text-align: left;
+}
+
+.nexus-markdown th {
+  background-color: #1a1b22;
+  font-weight: 600;
+  color: #f3f4f6;
+}
+
+.nexus-markdown tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.nexus-markdown tr:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.nexus-markdown a {
+  color: #60a5fa;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.nexus-markdown a:hover {
+  color: #93c5fd;
+}
+
+.nexus-markdown hr {
+  border: none;
+  border-top: 1px solid #262833;
+  margin: 1.25rem 0;
+}

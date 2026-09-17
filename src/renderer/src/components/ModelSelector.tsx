@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { MODEL_CATALOG, getModelDef, ProviderType } from '../../../shared/models'
+import { MODEL_CATALOG, getModelDef } from '../../../shared/models'
 
 interface ModelSelectorProps {
   currentModelId: string
