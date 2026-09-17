@@ -17,7 +17,7 @@ async function loadConfig(): Promise<ProviderConfig> {
     return JSON.parse(data)
   } catch {
     return {
-      provider: 'openai',
+      providerType: 'openai',
       apiKey: '',
       baseURL: 'https://api.openai.com/v1',
       model: 'gpt-4o',
@@ -31,8 +31,8 @@ async function saveConfig(config: ProviderConfig): Promise<boolean> {
     await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8')
     // Update active engine provider
     if (agentEngine) {
-      const { OpenAICompatibleProvider } = await import('./agent/providers/LLMProvider')
-      agentEngine.setProvider(new OpenAICompatibleProvider(config))
+      const { createProvider } = await import('./agent/providers/ProviderFactory')
+      agentEngine.setProvider(createProvider(config))
     }
     return true
   } catch (err) {
@@ -197,6 +197,17 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('agent:save-config', async (_, config: ProviderConfig) => {
     return saveConfig(config)
+  })
+
+  ipcMain.handle('agent:switch-model', async (_, modelId: string) => {
+    const config = await loadConfig()
+    const { getModelDef } = await import('../shared/models')
+    const modelDef = getModelDef(modelId)
+    if (!modelDef) return false
+    config.model = modelId
+    config.providerType = modelDef.provider as any
+    await saveConfig(config)
+    return true
   })
 
   // IPC: Workspace Explorer

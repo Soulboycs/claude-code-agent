@@ -56,11 +56,16 @@ export interface ChatMessage {
 }
 
 export interface ProviderConfig {
-  provider: 'openai' | 'anthropic' | 'gemini' | 'custom'
-  apiKey: string
+  providerType: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'ollama' | 'openai-compatible'
+  // OpenAI/DeepSeek/OpenAI-compatible
+  apiKey?: string
   baseURL?: string
   model: string
   temperature?: number
+  // 各厂商独立 key（Settings 里分开存）
+  anthropicApiKey?: string
+  geminiApiKey?: string
+  ollamaBaseURL?: string  // default: http://localhost:11434
 }
 
 export interface FileTreeNode {
@@ -75,6 +80,7 @@ export interface IElectronAPI {
   sendMessage: (prompt: string, workspacePath?: string) => Promise<void>
   abortAgent: () => Promise<void>
   respondApproval: (requestId: string, approved: boolean, reason?: string) => Promise<void>
+  switchModel: (modelId: string) => Promise<void>
 
   // Configuration
   getProviderConfig: () => Promise<ProviderConfig>

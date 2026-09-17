@@ -55,6 +55,8 @@ export default function App() {
     }
   }
 
+  const [currentModelId, setCurrentModelId] = useState<string>('')
+
   // Subscribe to Agent events
   useEffect(() => {
     // Initial workspace selection
@@ -62,6 +64,12 @@ export default function App() {
       if (folder) {
         setWorkspace(folder)
         refreshFiles(folder)
+      }
+    })
+
+    window.electronAPI?.getProviderConfig?.().then((config) => {
+      if (config && config.model) {
+        setCurrentModelId(config.model)
       }
     })
 
@@ -211,6 +219,8 @@ export default function App() {
         workspace={workspace}
         status={status}
         statusMessage={statusMessage}
+        currentModelId={currentModelId}
+        onModelChange={(id) => setCurrentModelId(id)}
         onSelectWorkspace={handleSelectWorkspace}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onAbort={handleAbort}

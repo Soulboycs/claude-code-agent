@@ -2,10 +2,14 @@ import React from 'react'
 import { FolderOpen, Settings, Square, Play, Sparkles, Terminal } from 'lucide-react'
 import { AgentStatus } from '@shared/types'
 
+import { ModelSelector } from './ModelSelector'
+
 interface HeaderProps {
   workspace: string
   status: AgentStatus
   statusMessage?: string
+  currentModelId: string
+  onModelChange: (modelId: string) => void
   onSelectWorkspace: () => void
   onOpenSettings: () => void
   onAbort: () => void
@@ -17,6 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   workspace,
   status,
   statusMessage,
+  currentModelId,
+  onModelChange,
   onSelectWorkspace,
   onOpenSettings,
   onAbort,
@@ -93,6 +99,12 @@ export const Header: React.FC<HeaderProps> = ({
           <FolderOpen className="w-3.5 h-3.5 text-blue-400 shrink-0" />
           <span className="truncate">{workspace.split(/[\\/]/).pop() || 'Select Workspace'}</span>
         </button>
+
+        <div className="mx-1 h-4 w-px bg-[#2f3038]" />
+
+        <ModelSelector currentModelId={currentModelId} onModelChange={onModelChange} />
+
+        <div className="mx-1 h-4 w-px bg-[#2f3038]" />
 
         {/* Terminal toggle */}
         <button

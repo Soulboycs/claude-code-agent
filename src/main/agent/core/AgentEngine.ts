@@ -10,9 +10,9 @@ import { ToolRegistry } from '../tools/ToolRegistry'
 import {
   ILLMProvider,
   LLMMessage,
-  OpenAICompatibleProvider,
   MockLLMProvider
 } from '../providers/LLMProvider'
+import { createProvider } from '../providers/ProviderFactory'
 
 export interface AgentEngineOptions {
   workspaceRoot: string
@@ -46,7 +46,7 @@ export class AgentEngine extends EventEmitter {
     if (options.customProvider) {
       this.provider = options.customProvider
     } else if (options.providerConfig) {
-      this.provider = new OpenAICompatibleProvider(options.providerConfig)
+      this.provider = createProvider(options.providerConfig)
     } else {
       this.provider = new MockLLMProvider()
     }

@@ -11,6 +11,9 @@ const api: IElectronAPI = {
   respondApproval: (requestId: string, approved: boolean, reason?: string) => {
     return ipcRenderer.invoke('agent:respond-approval', requestId, approved, reason)
   },
+  switchModel: (modelId: string) => {
+    return ipcRenderer.invoke('agent:switch-model', modelId)
+  },
   getProviderConfig: () => {
     return ipcRenderer.invoke('agent:get-config')
   },
