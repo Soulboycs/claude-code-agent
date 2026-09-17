@@ -105,7 +105,7 @@ async function scanDirectory(dirPath: string, maxDepth = 3, currentDepth = 0): P
 function createWindow(): void {
   console.log('[DEBUG] createWindow called')
   mainWindow = new BrowserWindow({
-    title: 'NEXUS AGENT',
+    title: 'Antigravity',
     width: 1280,
     height: 850,
     minWidth: 900,
@@ -205,7 +205,6 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
   createWindow()
   await initAgent()
-  ensureSidecarServer().catch((e) => console.warn('[Sidecar] error:', e))
 
   // IPC: Agent Control
   ipcMain.handle('agent:send-message', async (_, prompt: string, workspacePath?: string) => {

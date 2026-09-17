@@ -1,7 +1,7 @@
 import React, { useState, useMemo, memo } from 'react'
 import { marked, Tokens } from 'marked'
 import DOMPurify from 'dompurify'
-import { Check, Copy, Terminal } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
 
 // DOMPurify configuration
 const SANITIZE_CONFIG: DOMPurify.Config = {
@@ -71,7 +71,7 @@ interface CodeBlockProps {
   language?: string
 }
 
-const CodeBlock: React.FC<CodeBlockProps> = memo(({ code, language }) => {
+const CodeBlock: React.FC<CodeBlockProps> = memo(({ code, language: _language }) => {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = async () => {
@@ -93,37 +93,25 @@ const CodeBlock: React.FC<CodeBlockProps> = memo(({ code, language }) => {
     }
   }
 
-  const displayLang = (language || 'text').toUpperCase()
-
   return (
-    <div className="my-3 rounded-lg border border-[#262833] bg-[#121316] overflow-hidden text-xs shadow-md">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#1a1b22] border-b border-[#262833] select-none text-neutral-400">
-        <div className="flex items-center gap-2 font-mono text-[11px] tracking-wider text-neutral-300">
-          <Terminal className="w-3.5 h-3.5 text-neutral-500" />
-          <span>{displayLang}</span>
-        </div>
+    <div className="relative group my-3 rounded-2xl border border-neutral-200/70 bg-[#f4f5f7] overflow-hidden text-xs transition-all">
+      {/* Floating minimalist copy button */}
+      <div className="absolute top-2.5 right-2.5 z-10">
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-sans hover:bg-[#262833] text-neutral-400 hover:text-neutral-200 transition-colors"
+          className="flex items-center justify-center p-1.5 rounded-lg bg-white/70 hover:bg-white text-neutral-400 hover:text-neutral-700 border border-neutral-200/50 shadow-2xs transition-all opacity-80 group-hover:opacity-100"
           title="复制代码"
         >
           {copied ? (
-            <>
-              <Check className="w-3 h-3 text-emerald-400" />
-              <span className="text-emerald-400">已复制</span>
-            </>
+            <Check className="w-3.5 h-3.5 text-emerald-600" />
           ) : (
-            <>
-              <Copy className="w-3 h-3" />
-              <span>复制</span>
-            </>
+            <Copy className="w-3.5 h-3.5" />
           )}
         </button>
       </div>
 
-      {/* Code body */}
-      <pre className="p-3.5 overflow-x-auto font-mono leading-relaxed text-neutral-200 text-xs selection:bg-blue-600/30">
+      {/* Code body (light theme, high readability) */}
+      <pre className="p-4 pr-12 overflow-x-auto font-mono text-[12.5px] leading-relaxed text-[#1f2937] selection:bg-blue-100">
         <code>{code}</code>
       </pre>
     </div>

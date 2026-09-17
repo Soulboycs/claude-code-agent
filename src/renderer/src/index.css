@@ -46,9 +46,15 @@
 }
 
 .nexus-markdown p {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-  color: #262626;
+  margin-top: 0.625rem;
+  margin-bottom: 0.625rem;
+  color: #1f2937;
+  line-height: 1.75;
+}
+
+.nexus-markdown strong {
+  font-weight: 600;
+  color: #111827;
 }
 
 .nexus-markdown h1,
@@ -96,22 +102,25 @@
 }
 
 .nexus-markdown blockquote {
-  border-left: 3px solid #2563eb;
-  padding: 0.35rem 0.75rem;
-  margin: 0.5rem 0;
+  border-left: 3px solid #3b82f6;
+  padding: 0.4rem 0.85rem;
+  margin: 0.6rem 0;
   color: #4b5563;
-  background: rgba(37, 99, 235, 0.04);
-  border-radius: 0 6px 6px 0;
+  background: #f8fafc;
+  border-radius: 0 8px 8px 0;
 }
 
 .nexus-markdown code:not(pre code) {
   background-color: #f3f4f6;
-  color: #1f2937;
-  padding: 0.15rem 0.35rem;
-  border-radius: 0.25rem;
-  font-size: 0.825em;
+  color: #18181b;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.375rem;
+  font-size: 0.85em;
+  font-weight: 500;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.02);
+  margin: 0 0.15rem;
 }
 
 .nexus-markdown table {
