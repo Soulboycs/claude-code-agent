@@ -13,6 +13,8 @@ import {
   MockLLMProvider
 } from '../providers/LLMProvider'
 import { createProvider } from '../providers/ProviderFactory'
+import { sanitizeConversationHistory } from '../utils/messageSanitizer'
+import { logger } from '../../utils/logger'
 
 export interface AgentEngineOptions {
   workspaceRoot: string
@@ -96,6 +98,7 @@ Guidelines:
   }
 
   abort() {
+    logger.warn('AgentEngine', 'Agent execution aborted by user')
     if (this.currentAbortController) {
       this.currentAbortController.abort()
       this.currentAbortController = undefined
@@ -122,6 +125,8 @@ Guidelines:
       throw new Error(`Agent is already busy with status: ${this.status}`)
     }
 
+    logger.info('AgentEngine', `Starting turn for user prompt: "${userPrompt.slice(0, 100)}" (${userPrompt.length} chars)`)
+
     this.currentAbortController = new AbortController()
     const signal = this.currentAbortController.signal
 
@@ -133,11 +138,11 @@ Guidelines:
     if (this.conversationHistory.length > 40) {
       const systemMsg = this.conversationHistory[0]
       const last20 = this.conversationHistory.slice(-20)
-      this.conversationHistory = [
+      this.conversationHistory = sanitizeConversationHistory([
         systemMsg,
         { role: 'user', content: '[上下文已压缩，保留最近对话]' },
         ...last20
-      ]
+      ])
     }
 
     let step = 0
@@ -148,6 +153,9 @@ Guidelines:
         step++
 
         this.setStatus('thinking', `Step ${step}/${this.maxSteps}: Analyzing and planning...`)
+
+        // Defensively sanitize conversation history before sending to LLM API
+        this.conversationHistory = sanitizeConversationHistory(this.conversationHistory)
 
         const streamResult = await this.provider.chatStream(
           this.conversationHistory,
@@ -166,10 +174,10 @@ Guidelines:
           signal
         )
 
-        // Add assistant message to history
+        // Add assistant message to history (ensure content is never undefined for tool_calls)
         const assistantMsg: LLMMessage = {
           role: 'assistant',
-          content: streamResult.fullContent || undefined
+          content: streamResult.fullContent ?? ''
         }
 
         if (streamResult.toolCalls.length > 0) {
@@ -187,6 +195,7 @@ Guidelines:
 
         // If no tools were called, the agent has finished its task
         if (streamResult.toolCalls.length === 0) {
+          logger.info('AgentEngine', `Turn completed successfully in ${step} steps`)
           this.setStatus('completed', 'Task finished successfully.')
           return
         }
@@ -211,11 +220,13 @@ Guidelines:
 
           // Human-in-the-Loop check
           if (requiresApproval) {
+            logger.info('AgentEngine', `Awaiting user approval for ${tc.name}`, { id: tc.id })
             this.setStatus('awaiting_confirmation', `Awaiting user approval for ${tc.name}...`)
             const approved = await this.waitForApproval(tc.id, tc.name, tc.arguments)
 
             if (!approved) {
               const rejectionMsg = 'User rejected this tool execution.'
+              logger.warn('AgentEngine', `Tool execution rejected: ${tc.name}`, { id: tc.id })
               this.conversationHistory.push({
                 role: 'tool',
                 tool_call_id: tc.id,
@@ -234,6 +245,7 @@ Guidelines:
             }
           }
 
+          logger.info('AgentEngine', `Executing tool: ${tc.name}`, { id: tc.id, args: tc.arguments })
           this.setStatus('tool_executing', `Executing ${tc.name}...`)
 
           const toolResult = await this.toolRegistry.executeTool(tc.name, tc.arguments, {
@@ -245,6 +257,12 @@ Guidelines:
           })
 
           toolResult.toolCallId = tc.id
+
+          logger.info('AgentEngine', `Tool completed: ${tc.name}`, {
+            id: tc.id,
+            isError: !!toolResult.isError,
+            outputLength: (toolResult.output || '').length
+          })
 
           this.emitEvent({
             type: 'tool_call_complete',
@@ -260,12 +278,15 @@ Guidelines:
       }
 
       if (step >= this.maxSteps) {
+        logger.warn('AgentEngine', `Agent reached maximum step limit (${this.maxSteps})`)
         this.setStatus('error', `Agent reached maximum step limit (${this.maxSteps}). Halting.`)
       }
     } catch (err: any) {
       if (signal.aborted) {
+        logger.warn('AgentEngine', 'Turn execution cancelled mid-flight')
         this.setStatus('idle', 'Execution cancelled.')
       } else {
+        logger.error('AgentEngine', `Agent run encountered error: ${err?.message || String(err)}`, err)
         this.setStatus('error', err?.message || String(err))
         this.emitEvent({ type: 'error', message: err?.message || String(err) })
       }

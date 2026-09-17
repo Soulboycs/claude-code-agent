@@ -306,4 +306,24 @@ Ran 67 tests across 9 files. [13.80s]
 - **真实网络 E2E 测试**: `6 pass, 0 fail, 21 expect() calls` (真实 DeepSeek Live API 测量 TTFT 3.9s, TPS 11.1 tokens/s, 100% 流式递送无丢失)
 - **判定**: **通过 (PASSED)**，无假绿、无假阳性、100% 变异体被消灭。
 
+---
+
+## 证据条目 12: 根治 LLM API 400 错误、历史报文 Sanitizer 与结构化可观测性日志 (Message Sanitizer & Observability)
+
+- **执行时间**: 2026-09-17 20:20:10
+- **根因分析与彻底修复**:
+  1. **assistant tool_calls content 必填约束**: DeepSeek / OpenAI API 规范要求 assistant 带有 `tool_calls` 时，`content` 必须为 `string`（如 `""`）或 `null`，绝不可为 `undefined`。此前 `content: streamResult.fullContent || undefined` 会被 JSON 序列化移除导致 400 报错。现通过 `content: streamResult.fullContent ?? ''` 及 `sanitizeConversationHistory` 彻底防御。
+  2. **中途中断导致 tool_calls 悬挂无闭合**: 用户打断或网络故障时，历史记录遗留 `tool_calls` 但缺少对应的 `role: 'tool'` 消息。现由 Sanitizer 自动合成 `[Execution aborted or cancelled for ...]` 补全闭环，杜绝 DeepSeek 400。
+  3. **上下文压缩与多连续 user 角色冲突**: 自动合并连续 user 消息，移除无主孤儿 tool 消息。
+- **全链路可观测性 (Observability & Logging)**:
+  - 接入 `src/main/utils/logger.ts`，全量结构化写入 `d:/Agent/logs/nexus-agent.log`。
+  - API Key 敏感信息掩码 (`sk-***`)、捕获完整 API 请求入参、400/500/429 报错原始响应体、工具调用耗时与入参出参。
+- **验证命令与结果**:
+  - `bun test tests/message_sanitizer.test.ts`: **4 pass, 0 fail (0.36ms)**
+  - `bun test tests/`: **90 pass, 0 fail, 445 expect() calls (16.36s)**
+  - `bun test tests/e2e_real.test.ts`: **6 pass, 0 fail (14.80s, TTFT: 1045.4ms, TPS: 37.8 tokens/s)**
+  - `npm run build`: **0 TypeScript / Vite 错误，构建成功 (1.45s)**
+- **判定**: **全部通过 (PASSED)**，400 错误根因彻底铲除，生产级日志可观测性落地。
+
+
 

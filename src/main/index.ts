@@ -4,6 +4,7 @@ import fs from 'fs/promises'
 import { existsSync } from 'fs'
 import { createDefaultAgentEngine, AgentEngine } from './agent'
 import { AgentEvent, ProviderConfig, FileTreeNode } from '../shared/types'
+import { logger } from './utils/logger'
 
 app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('no-sandbox')
@@ -13,10 +14,12 @@ app.commandLine.appendSwitch('disable-gpu-compositing')
 
 process.on('uncaughtException', (err) => {
   console.error('[CRITICAL UNCAUGHT EXCEPTION]', err)
+  logger.error('MainProcess', 'CRITICAL UNCAUGHT EXCEPTION', err)
   require('fs').appendFileSync('D:\\Agent\\electron_crash.log', `[UNCAUGHT] ${err.stack || err}\n`)
 })
 process.on('unhandledRejection', (reason) => {
   console.error('[CRITICAL UNHANDLED REJECTION]', reason)
+  logger.error('MainProcess', 'CRITICAL UNHANDLED REJECTION', reason)
   require('fs').appendFileSync('D:\\Agent\\electron_crash.log', `[REJECTION] ${reason}\n`)
 })
 let mainWindow: BrowserWindow | null = null

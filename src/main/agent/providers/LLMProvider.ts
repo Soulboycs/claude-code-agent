@@ -1,5 +1,7 @@
 import { AgentTool } from '../tools/ToolRegistry'
 import { ProviderConfig } from '@shared/types'
+import { sanitizeConversationHistory } from '../utils/messageSanitizer'
+import { logger } from '../../utils/logger'
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -69,9 +71,11 @@ export class OpenAICompatibleProvider implements ILLMProvider {
       }
     }))
 
+    const sanitizedMessages = sanitizeConversationHistory(messages)
+
     const body: Record<string, any> = {
       model: this.config.model,
-      messages,
+      messages: sanitizedMessages,
       stream: true,
       temperature: this.config.temperature ?? 0.2
     }
@@ -80,6 +84,11 @@ export class OpenAICompatibleProvider implements ILLMProvider {
       body.tools = formattedTools
       body.tool_choice = 'auto'
     }
+
+    logger.info('OpenAICompatibleProvider', `Initiating request to ${url}`, {
+      model: this.config.model,
+      messageCount: sanitizedMessages.length
+    })
 
     let response: Response | undefined
     let retries = 0
@@ -98,18 +107,31 @@ export class OpenAICompatibleProvider implements ILLMProvider {
         })
 
         if (!response.ok) {
+          const errorText = await response.text()
+          logger.error('OpenAICompatibleProvider', `LLM API Error (${response.status}) on ${url}: ${errorText}`, {
+            status: response.status,
+            model: this.config.model,
+            url,
+            errorResponse: errorText,
+            requestBody: body
+          })
+
           if ((response.status === 429 || response.status >= 500) && retries < maxRetries) {
             retries++
+            logger.warn('OpenAICompatibleProvider', `Retrying request due to status ${response.status} (attempt ${retries}/${maxRetries})`)
             onChunk({ statusUpdate: `Rate limited or server error (${response.status}). Retrying in 2s (attempt ${retries}/${maxRetries})...` })
             await new Promise(r => setTimeout(r, 2000))
             continue
           }
-          const errorText = await response.text()
           throw new Error(`LLM Provider API error (${response.status}): ${errorText}`)
         }
         break
       } catch (err: any) {
-        if (err.name === 'AbortError') throw err
+        if (err.name === 'AbortError') {
+          logger.warn('OpenAICompatibleProvider', 'Request aborted by signal')
+          throw err
+        }
+        logger.warn('OpenAICompatibleProvider', `Network or fetch error: ${err.message}`, err)
         if (retries < maxRetries) {
           retries++
           onChunk({ statusUpdate: `Network error: ${err.message}. Retrying in 2s (attempt ${retries}/${maxRetries})...` })
@@ -216,6 +238,8 @@ export class OpenAICompatibleProvider implements ILLMProvider {
         arguments: argsObj
       }
     })
+
+    logger.info('OpenAICompatibleProvider', `Stream completed (thinking: ${fullThinking.length} chars, content: ${fullContent.length} chars, tools: ${parsedToolCalls.length})`)
 
     return {
       fullThinking,
