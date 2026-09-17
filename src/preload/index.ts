@@ -20,6 +20,9 @@ const api: IElectronAPI = {
   saveProviderConfig: (config: ProviderConfig) => {
     return ipcRenderer.invoke('agent:save-config', config)
   },
+  getCurrentWorkspace: () => {
+    return ipcRenderer.invoke('workspace:get-current')
+  },
   selectWorkspaceFolder: () => {
     return ipcRenderer.invoke('workspace:select-folder')
   },

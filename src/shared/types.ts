@@ -88,6 +88,7 @@ export interface IElectronAPI {
   saveProviderConfig: (config: ProviderConfig) => Promise<boolean>
 
   // Workspace
+  getCurrentWorkspace: () => Promise<string>
   selectWorkspaceFolder: () => Promise<string | null>
   readWorkspaceFiles: (dirPath: string) => Promise<FileTreeNode[]>
 

@@ -234,6 +234,10 @@ app.whenReady().then(async () => {
   })
 
   // IPC: Workspace Explorer
+  ipcMain.handle('workspace:get-current', async () => {
+    return currentWorkspace
+  })
+
   ipcMain.handle('workspace:select-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openDirectory'],

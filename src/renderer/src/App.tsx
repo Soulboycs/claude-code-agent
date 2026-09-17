@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useReducer } from 'react'
 import {
   AgentEvent,
   AgentStatus,
   ApprovalRequest,
-  ChatMessage,
   FileTreeNode
 } from '@shared/types'
 import { Header } from './components/Header'
@@ -13,6 +12,7 @@ import { ApprovalCard } from './components/ApprovalCard'
 import { TerminalView } from './components/TerminalView'
 import { SettingsModal } from './components/SettingsModal'
 import { CornerDownLeft, Sparkles } from 'lucide-react'
+import { createInitialChatState, chatReducer } from './utils/chatReducer'
 
 export default function App() {
   const [workspace, setWorkspace] = useState<string>('')
@@ -21,12 +21,13 @@ export default function App() {
 
   const [status, setStatus] = useState<AgentStatus>('idle')
   const [statusMessage, setStatusMessage] = useState<string>('')
-  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [promptInput, setPromptInput] = useState<string>('')
   const [currentModelId, setCurrentModelId] = useState<string>('')
 
-  // Stable reference to the active turn's assistant message ID for idempotent streaming
-  const currentAssistantMsgIdRef = useRef<string | null>(null)
+  // Single source of truth for chat messages & active turn via pure tested chatReducer
+  const [chatState, dispatchChat] = useReducer(chatReducer, undefined, createInitialChatState)
+  const messages = chatState.messages
+
   const workspaceRef = useRef<string>('')
   workspaceRef.current = workspace
 
@@ -55,8 +56,8 @@ export default function App() {
 
   // Subscribe to Agent events once on mount — 100% idempotent & FIFO ordered
   useEffect(() => {
-    // Initial workspace selection
-    window.electronAPI?.selectWorkspaceFolder?.().then((folder) => {
+    // Non-intrusive initial workspace detection (NO popup dialog on launch!)
+    window.electronAPI?.getCurrentWorkspace?.().then((folder) => {
       if (folder) {
         setWorkspace(folder)
         refreshFiles(folder)
@@ -70,124 +71,33 @@ export default function App() {
     })
 
     const unsubscribe = window.electronAPI?.onAgentEvent?.((event: AgentEvent) => {
-      switch (event.type) {
-        case 'status_change':
-          setStatus(event.status)
-          if (event.message) setStatusMessage(event.message)
+      // 1. Dispatch event to pure chatReducer (guarantees in-place accumulation & zero duplicate cards)
+      dispatchChat(event)
 
-          if (event.status === 'completed' || event.status === 'error' || event.status === 'idle') {
-            const activeId = currentAssistantMsgIdRef.current
-            if (activeId) {
-              setMessages((prev) =>
-                prev.map((msg) => (msg.id === activeId ? { ...msg, isStreaming: false } : msg))
-              )
-              currentAssistantMsgIdRef.current = null
-            }
-            setPendingApproval(null)
-            refreshFiles()
-          }
-          break
+      // 2. Auxiliary side effects
+      if (event.type === 'status_change') {
+        setStatus(event.status)
+        if (event.message) setStatusMessage(event.message)
 
-        case 'thinking_delta': {
-          const activeId = currentAssistantMsgIdRef.current
-          if (!activeId) break
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === activeId
-                ? { ...msg, thinking: (msg.thinking || '') + event.delta }
-                : msg
-            )
-          )
-          break
+        if (event.status === 'completed' || event.status === 'error' || event.status === 'idle') {
+          setPendingApproval(null)
+          refreshFiles()
         }
-
-        case 'message_delta': {
-          const activeId = currentAssistantMsgIdRef.current
-          if (!activeId) break
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === activeId
-                ? { ...msg, content: (msg.content || '') + event.delta }
-                : msg
-            )
-          )
-          break
+      } else if (event.type === 'tool_call_complete') {
+        // Refresh file tree if filesystem modification occurred
+        if (
+          event.result.name.includes('file') ||
+          event.result.name === 'run_command'
+        ) {
+          refreshFiles()
         }
-
-        case 'tool_call_start': {
-          const activeId = currentAssistantMsgIdRef.current
-          if (!activeId) break
-          setMessages((prev) =>
-            prev.map((msg) => {
-              if (msg.id !== activeId) return msg
-              const existing = msg.toolCalls || []
-              // Idempotent: prevent duplicate tool call registrations
-              if (existing.some((tc) => tc.id === event.toolCall.id)) return msg
-              return { ...msg, toolCalls: [...existing, event.toolCall] }
-            })
-          )
-          break
-        }
-
-        case 'tool_call_complete': {
-          const activeId = currentAssistantMsgIdRef.current
-          if (!activeId) break
-          setMessages((prev) =>
-            prev.map((msg) => {
-              if (msg.id !== activeId) return msg
-              const existingResults = msg.toolResults || []
-              // Idempotent: update existing or append
-              const updatedResults = existingResults.some(
-                (r) => r.toolCallId === event.result.toolCallId
-              )
-                ? existingResults.map((r) =>
-                    r.toolCallId === event.result.toolCallId ? event.result : r
-                  )
-                : [...existingResults, event.result]
-              return { ...msg, toolResults: updatedResults }
-            })
-          )
-
-          // Refresh file tree if filesystem modification occurred
-          if (
-            event.result.name.includes('file') ||
-            event.result.name === 'run_command'
-          ) {
-            refreshFiles()
-          }
-          break
-        }
-
-        case 'approval_required':
-          setPendingApproval(event.request)
-          break
-
-        case 'terminal_output':
-          setIsTerminalOpen(true)
-          break
-
-        case 'error': {
-          setStatus('error')
-          setStatusMessage(event.message)
-          const activeId = currentAssistantMsgIdRef.current
-          if (activeId) {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === activeId
-                  ? {
-                      ...msg,
-                      content: msg.content
-                        ? `${msg.content}\n\n[Error: ${event.message}]`
-                        : `[Error: ${event.message}]`,
-                      isStreaming: false
-                    }
-                  : msg
-              )
-            )
-            currentAssistantMsgIdRef.current = null
-          }
-          break
-        }
+      } else if (event.type === 'approval_required') {
+        setPendingApproval(event.request)
+      } else if (event.type === 'terminal_output') {
+        setIsTerminalOpen(true)
+      } else if (event.type === 'error') {
+        setStatus('error')
+        setStatusMessage(event.message)
       }
     })
 
@@ -214,38 +124,28 @@ export default function App() {
     if (!prompt || status === 'thinking' || status === 'tool_executing') return
 
     const now = Date.now()
-    const userMsgId = `user_${now}`
     const asstMsgId = `asst_${now}`
 
-    currentAssistantMsgIdRef.current = asstMsgId
-
-    // Insert user message and streaming assistant placeholder simultaneously
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: userMsgId,
-        role: 'user',
-        content: prompt,
-        timestamp: now
-      },
-      {
-        id: asstMsgId,
-        role: 'assistant',
-        content: '',
-        thinking: '',
-        toolCalls: [],
-        toolResults: [],
-        isStreaming: true,
-        timestamp: now
-      }
-    ])
+    // Dispatch turn initiation directly into chatReducer
+    dispatchChat({
+      type: 'start_turn',
+      prompt,
+      turnId: asstMsgId
+    })
 
     setPromptInput('')
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
 
-    await window.electronAPI?.sendMessage?.(prompt, workspace)
+    try {
+      await window.electronAPI?.sendMessage?.(prompt, workspaceRef.current || undefined)
+    } catch (err: any) {
+      dispatchChat({
+        type: 'error',
+        message: err.message || 'Failed to send message'
+      })
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -264,13 +164,7 @@ export default function App() {
 
   const handleAbort = async () => {
     await window.electronAPI?.abortAgent?.()
-    const activeId = currentAssistantMsgIdRef.current
-    if (activeId) {
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === activeId ? { ...msg, isStreaming: false } : msg))
-      )
-      currentAssistantMsgIdRef.current = null
-    }
+    dispatchChat({ type: 'status_change', status: 'idle' })
     setStatus('idle')
   }
 
