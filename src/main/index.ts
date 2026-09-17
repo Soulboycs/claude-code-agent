@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import fs from 'fs/promises'
+import { existsSync } from 'fs'
 import { createDefaultAgentEngine, AgentEngine } from './agent'
 import { AgentEvent, ProviderConfig, FileTreeNode } from '../shared/types'
 
@@ -90,7 +91,7 @@ function createWindow(): void {
     height: 850,
     minWidth: 900,
     minHeight: 600,
-    show: false,
+    show: true,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#121316',
@@ -99,16 +100,16 @@ function createWindow(): void {
     },
     backgroundColor: '#121316',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: existsSync(join(__dirname, '../preload/index.mjs'))
+        ? join(__dirname, '../preload/index.mjs')
+        : join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
     }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow?.show()
-  })
+  mainWindow.show()
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
