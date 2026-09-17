@@ -55,24 +55,33 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
     if (isStreaming) {
       hasStreamedRef.current = true
       if (!rafIdRef.current) startLoop(false)
-      return
+    } else {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
+
+      if (!hasStreamedRef.current || pacer.isDone()) {
+        // 历史消息或已无积压：直接呈现终态
+        pacer.flush()
+        setDisplayedText(pacer.getDisplayed())
+        return
+      }
+
+      // 完成态平滑收尾（isFinished 路径）：~10 帧内排空剩余缓冲后彻底定稿。
+      // 该路径由此真正接线 — 修复 2026-09-17 审计发现的"死代码 + 测试测不到生产行为"。
+      startLoop(true)
     }
 
-    if (rafIdRef.current) {
-      cancelAnimationFrame(rafIdRef.current)
-      rafIdRef.current = null
+    // R1 修复（2026-09-18 代理A审计）：组件卸载或依赖变化时必须取消 rAF 循环，
+    // 否则父级在 finalize 时换装 MarkdownRenderer 卸载本组件后，循环残留继续
+    // 对已卸载组件 setState（每回合必触发的泄漏路径）。
+    return () => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
     }
-
-    if (!hasStreamedRef.current || pacer.isDone()) {
-      // 历史消息或已无积压：直接呈现终态
-      pacer.flush()
-      setDisplayedText(pacer.getDisplayed())
-      return
-    }
-
-    // 完成态平滑收尾（isFinished 路径）：~10 帧内排空剩余缓冲后彻底定稿。
-    // 该路径由此真正接线 — 修复 2026-09-17 审计发现的"死代码 + 测试测不到生产行为"。
-    startLoop(true)
   }, [content, isStreaming, onComplete])
 
   // S2 心跳：流式中断流/工具长执行超过阈值时提示 [Receiving...]，新数据到达即熄灭
