@@ -5,6 +5,20 @@ import { existsSync } from 'fs'
 import { createDefaultAgentEngine, AgentEngine } from './agent'
 import { AgentEvent, ProviderConfig, FileTreeNode } from '../shared/types'
 
+app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('no-sandbox')
+app.commandLine.appendSwitch('disable-gpu')
+app.commandLine.appendSwitch('disable-software-rasterizer')
+app.commandLine.appendSwitch('disable-gpu-compositing')
+
+process.on('uncaughtException', (err) => {
+  console.error('[CRITICAL UNCAUGHT EXCEPTION]', err)
+  require('fs').appendFileSync('D:\\Agent\\electron_crash.log', `[UNCAUGHT] ${err.stack || err}\n`)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[CRITICAL UNHANDLED REJECTION]', reason)
+  require('fs').appendFileSync('D:\\Agent\\electron_crash.log', `[REJECTION] ${reason}\n`)
+})
 let mainWindow: BrowserWindow | null = null
 let currentWorkspace: string = process.cwd()
 let agentEngine: AgentEngine | null = null
@@ -86,6 +100,7 @@ async function scanDirectory(dirPath: string, maxDepth = 3, currentDepth = 0): P
 }
 
 function createWindow(): void {
+  console.log('[DEBUG] createWindow called')
   mainWindow = new BrowserWindow({
     title: 'NEXUS AGENT',
     width: 1280,
@@ -107,6 +122,9 @@ function createWindow(): void {
 
   mainWindow.show()
   mainWindow.focus()
+  mainWindow.setAlwaysOnTop(true)
+  mainWindow.setAlwaysOnTop(false)
+  mainWindow.webContents.openDevTools({ mode: 'detach' })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
