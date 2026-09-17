@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { AgentTool } from './ToolRegistry'
-import { glob } from 'node:fs/promises'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -11,9 +10,54 @@ function resolvePath(filePath: string, workspaceRoot: string): string {
   return path.normalize(path.join(workspaceRoot, filePath))
 }
 
+/**
+ * Robust cross-platform recursive directory walker compatible with all Node/Electron versions.
+ */
+async function* walkDirectory(
+  dir: string,
+  maxDepth = 8,
+  currentDepth = 0
+): AsyncGenerator<string> {
+  if (currentDepth > maxDepth) return
+  let entries
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    if (
+      entry.name === 'node_modules' ||
+      entry.name === '.git' ||
+      entry.name === 'dist' ||
+      entry.name === 'out' ||
+      entry.name === '.next'
+    ) {
+      continue
+    }
+
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      yield* walkDirectory(fullPath, maxDepth, currentDepth + 1)
+    } else if (entry.isFile()) {
+      yield fullPath
+    }
+  }
+}
+
+function patternToRegex(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '.*')
+    .replace(/\*/g, '[^/\\\\]*')
+    .replace(/\?/g, '.')
+  return new RegExp(`^${escaped}$`, 'i')
+}
+
 export const globTool: AgentTool = {
   name: 'GlobTool',
-  description: 'Search for files by name pattern or wildcard.',
+  description: 'Search for files by name pattern or wildcard (e.g. "*.ts", "src/**/*.tsx").',
   parameters: z.object({
     pattern: z.string().describe('The glob pattern to match files against'),
     path: z.string().optional().describe('The directory to search in. Defaults to workspace root.')
@@ -21,14 +65,19 @@ export const globTool: AgentTool = {
   execute: async ({ pattern, path: searchPath }, context) => {
     const rootPath = searchPath ? resolvePath(searchPath, context.workspaceRoot) : context.workspaceRoot
     try {
+      const regex = patternToRegex(pattern)
       const results: string[] = []
       let count = 0
-      for await (const p of glob(pattern, { cwd: rootPath, withFileTypes: false, exclude: (d) => d.name === 'node_modules' || d.name === '.git' })) {
-        results.push(p.toString())
-        count++
-        if (count > 200) {
-          results.push('... (truncated)')
-          break
+
+      for await (const fullPath of walkDirectory(rootPath)) {
+        const relPath = path.relative(rootPath, fullPath).replace(/\\/g, '/')
+        if (regex.test(relPath) || regex.test(path.basename(fullPath))) {
+          results.push(relPath)
+          count++
+          if (count > 200) {
+            results.push('... (truncated)')
+            break
+          }
         }
       }
       if (results.length === 0) return 'No files found'
@@ -50,29 +99,27 @@ export const grepTool: AgentTool = {
   execute: async ({ pattern, path: searchPath, globPattern }, context) => {
     const rootPath = searchPath ? resolvePath(searchPath, context.workspaceRoot) : context.workspaceRoot
     const regex = new RegExp(pattern, 'g')
-    const searchGlob = globPattern || '**/*'
+    const filterRegex = globPattern ? patternToRegex(globPattern) : null
+
     try {
       const results: string[] = []
       let matchCount = 0
-      
-      for await (const p of glob(searchGlob, { cwd: rootPath, withFileTypes: true, exclude: (d) => d.name === 'node_modules' || d.name === '.git' })) {
-        if (!p.isFile()) continue
-        // node:fs/promises glob withFileTypes gives Dirent. p.parentPath might be available in Node 21+, else fallback to p.path
-        const parent = (p as any).parentPath || (p as any).path || ''
-        const fullPath = path.join(parent, p.name)
-        if (!fullPath.startsWith(rootPath)) continue // sanity check
-        
-        const relPath = path.relative(rootPath, fullPath)
-        
+
+      for await (const fullPath of walkDirectory(rootPath)) {
+        const relPath = path.relative(rootPath, fullPath).replace(/\\/g, '/')
+        if (filterRegex && !filterRegex.test(relPath) && !filterRegex.test(path.basename(fullPath))) {
+          continue
+        }
+
         try {
           const content = await fs.readFile(fullPath, 'utf-8')
-          // very basic binary check
-          if (content.indexOf('\0') !== -1) continue
+          if (content.indexOf('\0') !== -1) continue // Skip binary files
 
           const lines = content.split(/\r?\n/)
           for (let i = 0; i < lines.length; i++) {
+            regex.lastIndex = 0
             if (regex.test(lines[i])) {
-              results.push(`${relPath}:${i + 1}:${lines[i]}`)
+              results.push(`${relPath}:${i + 1}:${lines[i].trim()}`)
               matchCount++
               if (matchCount > 300) {
                 results.push('... (truncated)')
@@ -80,11 +127,11 @@ export const grepTool: AgentTool = {
               }
             }
           }
-        } catch (e) {
-          // ignore read errors
+        } catch {
+          // ignore unreadable files
         }
       }
-      
+
       if (results.length === 0) return 'No matches found'
       return results.join('\n')
     } catch (err: any) {
