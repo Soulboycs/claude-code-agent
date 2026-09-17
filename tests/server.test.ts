@@ -19,6 +19,7 @@ describe('Bun.serve Server & WebSocket Gateway Tests', () => {
     const data = (await res.json()) as any
     expect(data.status).toBe('ok')
     expect(data.runtime).toBe('bun')
+    expect(data.name).toBe('NEXUS AGENT')
   })
 
   it('POST /api/sessions creates a session record and GET lists it', async () => {

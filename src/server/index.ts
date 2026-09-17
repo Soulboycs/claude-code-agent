@@ -145,6 +145,7 @@ export function startServer(port = 3456, host = process.env.SERVER_HOST || '0.0.
       // 1. Health Probe
       if (url.pathname === '/health') {
         return Response.json({
+          name: 'NEXUS AGENT',
           status: 'ok',
           runtime: 'bun',
           version: Bun.version,
