@@ -1,0 +1,18 @@
+services:
+  agent-server:
+    build: .
+    container_name: claude-code-agent-server
+    restart: always
+    ports:
+      - "3456:3456"
+    volumes:
+      - agent-data:/root/.claude-agent
+    environment:
+      - SERVER_PORT=3456
+      - SERVER_HOST=0.0.0.0
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.openai.com/v1}
+
+volumes:
+  agent-data:
+    driver: local
