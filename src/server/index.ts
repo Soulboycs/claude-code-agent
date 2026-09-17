@@ -154,6 +154,33 @@ export function startServer(port = 3456, host = process.env.SERVER_HOST || '0.0.
         })
       }
 
+      // 1.1 Download & Landing Web Page (GET / or /download)
+      if (url.pathname === '/' || url.pathname === '/download') {
+        const htmlPath = path.join(import.meta.dir, 'public', 'index.html')
+        if (fs.existsSync(htmlPath)) {
+          const html = fs.readFileSync(htmlPath, 'utf-8')
+          return new Response(html, {
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          })
+        }
+      }
+
+      // 1.2 Direct Package Download Endpoint (/download/latest)
+      if (url.pathname === '/download/latest' || url.pathname === '/downloads/nexus-agent-latest.zip') {
+        const localZip = path.join(process.cwd(), 'public', 'downloads', 'nexus-agent-latest.zip')
+        if (fs.existsSync(localZip)) {
+          const file = Bun.file(localZip)
+          return new Response(file, {
+            headers: {
+              'Content-Type': 'application/zip',
+              'Content-Disposition': `attachment; filename="nexus-agent-${getGitCommit()}.zip"`,
+            },
+          })
+        }
+        // Fallback to GitHub Release Archive
+        return Response.redirect('https://github.com/Soulboycs/nexus-agent/archive/refs/heads/main.zip', 302)
+      }
+
       // 2. CORS Preflight
       if (req.method === 'OPTIONS') {
         return new Response(null, {

@@ -22,6 +22,23 @@ describe('Bun.serve Server & WebSocket Gateway Tests', () => {
     expect(data.name).toBe('NEXUS AGENT')
   })
 
+  it('GET / serves modern download landing page', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/html')
+    const html = await res.text()
+    expect(html).toContain('NEXUS AGENT')
+    expect(html).toContain('/download/latest')
+  })
+
+  it('GET /download/latest handles download or fallback redirect', async () => {
+    const res = await fetch(`http://127.0.0.1:${TEST_PORT}/download/latest`, {
+      redirect: 'manual',
+    })
+    // Either 200 (zip) or 302 (redirect to github archive)
+    expect([200, 302]).toContain(res.status)
+  })
+
   it('POST /api/sessions creates a session record and GET lists it', async () => {
     const postRes = await fetch(`http://127.0.0.1:${TEST_PORT}/api/sessions`, {
       method: 'POST',

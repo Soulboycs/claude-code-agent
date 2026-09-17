@@ -17,8 +17,8 @@ REPO_URL="https://github.com/Soulboycs/nexus-agent.git"
 # -------------------------------------------------------------
 echo "[1/6] Auditing and self-healing system dependencies..."
 
-# Ensure curl, git, unzip exist
-for pkg in curl git unzip; do
+# Ensure curl, git, unzip, zip exist
+for pkg in curl git unzip zip; do
   if ! command -v "$pkg" >/dev/null 2>&1; then
     echo "[!] Missing $pkg, auto-installing via apt..."
     DEBIAN_FRONTEND=noninteractive apt-get update -y && apt-get install -y "$pkg"
@@ -70,13 +70,23 @@ echo "[+] Code tree synced at commit $CURRENT_REV: \"$COMMIT_MSG\""
 # -------------------------------------------------------------
 # 3. Production Dependencies Installation
 # -------------------------------------------------------------
-echo "[3/6] Installing production dependencies via Bun..."
+echo "[3/7] Installing production dependencies via Bun..."
 "$BUN_BIN" install --production
 
 # -------------------------------------------------------------
-# 4. Systemd Service Integrity & Auto-Configuration
+# 4. Package Latest Release Bundle for Web Download
 # -------------------------------------------------------------
-echo "[4/6] Ensuring Systemd service daemon..."
+echo "[4/7] Packaging clean release artifact for web download..."
+DOWNLOADS_DIR="$DEPLOY_DIR/public/downloads"
+mkdir -p "$DOWNLOADS_DIR"
+# Package clean zip excluding git, node_modules, temp files
+zip -q -r "$DOWNLOADS_DIR/nexus-agent-latest.zip" . -x "node_modules/*" ".git/*" "out/*" ".env*" "*.zip"
+echo "[+] Latest download package generated at $DOWNLOADS_DIR/nexus-agent-latest.zip ($(du -sh "$DOWNLOADS_DIR/nexus-agent-latest.zip" | cut -f1))"
+
+# -------------------------------------------------------------
+# 5. Systemd Service Integrity & Auto-Configuration
+# -------------------------------------------------------------
+echo "[5/7] Ensuring Systemd service daemon..."
 SERVICE_FILE="/etc/systemd/system/claude-code-agent.service"
 cat << 'EOF' > /tmp/claude-code-agent.service
 [Unit]
@@ -111,9 +121,9 @@ echo "[*] Restarting claude-code-agent.service..."
 systemctl restart claude-code-agent.service
 
 # -------------------------------------------------------------
-# 5. Reverse Proxy & Firewall Verification
+# 6. Reverse Proxy & Firewall Verification
 # -------------------------------------------------------------
-echo "[5/6] Verifying firewall and reverse proxy..."
+echo "[6/7] Verifying firewall and reverse proxy..."
 ufw allow 3456/tcp >/dev/null 2>&1 || true
 iptables -I INPUT -p tcp --dport 3456 -j ACCEPT >/dev/null 2>&1 || true
 
@@ -127,9 +137,9 @@ if [ -f "$NGINX_CONF" ]; then
 fi
 
 # -------------------------------------------------------------
-# 6. Post-Deployment Health Check Verification
+# 7. Post-Deployment Health Check Verification
 # -------------------------------------------------------------
-echo "[6/6] Verifying health check probe..."
+echo "[7/7] Verifying health check probe..."
 sleep 2
 HEALTH_RESP=$(curl -fsS http://127.0.0.1:3456/health || echo "FAILED")
 
