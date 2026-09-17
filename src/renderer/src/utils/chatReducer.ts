@@ -145,7 +145,9 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
                   content:
                     action.status === 'error' && action.message && !msg.content
                       ? `[Error: ${action.message}]`
-                      : msg.content,
+                      : (action.status === 'completed' && !msg.content && !msg.thinking && (!msg.toolCalls || msg.toolCalls.length === 0)
+                          ? '(No response returned from model)'
+                          : msg.content),
                   isStreaming: false
                 }
               : msg
