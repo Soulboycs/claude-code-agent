@@ -13,6 +13,7 @@ import { describe, it, expect } from 'bun:test'
 import { createDefaultAgentEngine } from '../src/main/agent'
 import { createProvider } from '../src/main/agent/providers/ProviderFactory'
 import { ProviderConfig } from '../src/shared/types'
+import { parseMarkdownToNodes } from '../src/renderer/src/components/MarkdownRenderer'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -196,6 +197,14 @@ describe('E2E — Agent reads a real file', () => {
 
       // Agent should have found and reported the magic string
       expect(finalResponse).toContain('NEXUS_FILE_CONTENT_12345')
+
+      // E2E Verification: Real DeepSeek Markdown response parsed through Nexus MarkdownRenderer
+      const renderNodes = parseMarkdownToNodes(finalResponse)
+      expect(renderNodes.length).toBeGreaterThanOrEqual(1)
+      const hasCodeOrHtml = renderNodes.some(
+        (n) => n.type === 'code' || (n.type === 'html' && n.content.includes('NEXUS_FILE_CONTENT_12345'))
+      )
+      expect(hasCodeOrHtml).toBe(true)
     } finally {
       fs.unlinkSync(testFile)
     }
