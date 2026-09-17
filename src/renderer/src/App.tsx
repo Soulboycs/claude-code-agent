@@ -13,6 +13,7 @@ import { TerminalView } from './components/TerminalView'
 import { SettingsModal } from './components/SettingsModal'
 import { CornerDownLeft, Sparkles } from 'lucide-react'
 import { createInitialChatState, chatReducer } from './utils/chatReducer'
+import { createScrollFollower, ScrollFollower } from './utils/scrollFollower'
 
 export default function App() {
   const [workspace, setWorkspace] = useState<string>('')
@@ -39,16 +40,22 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const isAutoScrollEnabledRef = useRef<boolean>(true)
+  const scrollFollowerRef = useRef<ScrollFollower | null>(null)
 
-  const handleScroll = () => {
+  // Smart follow: input-source based (wheel-up / scrollbar drag / nav keys stop
+  // following; returning to bottom resumes). Position heuristics never disable
+  // following, so programmatic scrolls and streaming growth cannot be misread.
+  useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-    isAutoScrollEnabledRef.current = isAtBottom
-  }
+    const follower = createScrollFollower(el)
+    scrollFollowerRef.current = follower
+    return () => {
+      follower.detach()
+      scrollFollowerRef.current = null
+    }
+  }, [])
 
   // Refresh workspace file tree
   const refreshFiles = useCallback(async (dir?: string) => {
@@ -115,11 +122,11 @@ export default function App() {
     }
   }, [refreshFiles])
 
-  // Smart Auto-scroll: follow stream when at bottom, respect user scroll-up
+  // Smart Auto-scroll: follow stream growth with an instant bottom snap.
+  // Direct scrollTop assignment (post-commit) — no smooth animation, so there
+  // are no mid-flight scroll events to misinterpret as user scroll-up.
   useEffect(() => {
-    if (isAutoScrollEnabledRef.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
+    scrollFollowerRef.current?.follow()
   }, [messages, pendingApproval])
 
   const handleSelectWorkspace = async () => {
@@ -138,8 +145,7 @@ export default function App() {
     const asstMsgId = `asst_${now}`
 
     // Force stick to bottom on new message
-    isAutoScrollEnabledRef.current = true
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    scrollFollowerRef.current?.forceFollow()
 
     // Dispatch turn initiation directly into chatReducer
     dispatchChat({
@@ -216,7 +222,7 @@ export default function App() {
 
         {/* Center Chat & Agent Timeline */}
         <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#121316]">
-          <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-4 shadow-inner">
@@ -256,8 +262,6 @@ export default function App() {
                 <ApprovalCard request={pendingApproval} onRespond={handleApprovalRespond} />
               </div>
             )}
-
-            <div ref={bottomRef} />
           </div>
 
           {/* Bottom Embedded Terminal */}
