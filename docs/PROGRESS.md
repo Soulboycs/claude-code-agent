@@ -59,7 +59,7 @@
 
 | 事项 | 状态 | 证据 |
 | :--- | :--- | :--- |
-| 代码层清除（e2e_real + logger 两处） | ✅ 完成 | `git grep sk-c74d22f3` 追踪内容零命中 |
+| 代码层清除（e2e_real + logger 两处） | ✅ 完成 | `git grep sk-c74d***` 追踪内容零命中 |
 | 凭据本地化（.env.local，gitignore 验证） | ✅ 完成 | `git check-ignore .env.local` 命中 .gitignore:30 |
 | 无凭据优雅降级（skip 而非 fail） | ✅ 验证通过 | 无 key: 6 skip / 0 fail；有 key: 6 pass（真实 API） |
 | **key 轮换（DeepSeek 控制台）** | ⏳ **等待用户** | 轮换后仅需更新本地 .env.local |

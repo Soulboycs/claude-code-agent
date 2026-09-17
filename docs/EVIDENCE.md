@@ -365,7 +365,7 @@ Ran 67 tests across 9 files. [13.80s]
 
 ## 证据条目 13: P0 密钥泄漏整改 — 凭据本地化（2026-09-17）
 
-**泄漏面扫描**: `git grep -n "sk-c74d22f3" -- .` 整改后对已追踪内容**零命中**；整改前泄漏点共 2 处（`tests/e2e_real.test.ts:19` 与 `tests/logger.test.ts:7`，后者为此前审计遗漏项）。
+**泄漏面扫描**: `git grep -n "sk-c74d***" -- .` 整改后对已追踪内容**零命中**；整改前泄漏点共 2 处（`tests/e2e_real.test.ts:19` 与 `tests/logger.test.ts:7`，后者为此前审计遗漏项）。
 
 **整改动作**:
 - `tests/e2e_real.test.ts`: 移除硬编码 key → `DEEPSEEK_API_KEY` 环境变量注入 + 显式加载项目根 `.env.local`（实测 `bun test` 不会自动注入该文件，探针用例证实 `KEY_LEN=0 NODE_ENV=test`）；无凭据时 6 个用例 `it.skipIf` 全部优雅跳过
