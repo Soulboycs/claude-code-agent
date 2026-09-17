@@ -58,7 +58,7 @@ export function broadcastToSession(sessionId: string, message: ServerMessage) {
   }
 }
 
-export function startServer(port = 3456, host = '127.0.0.1') {
+export function startServer(port = 3456, host = process.env.SERVER_HOST || '0.0.0.0') {
   return Bun.serve<WebSocketData>({
     port,
     hostname: host,
@@ -317,6 +317,7 @@ export function startServer(port = 3456, host = '127.0.0.1') {
 // Standalone execution
 if (import.meta.main) {
   const port = parseInt(process.env.SERVER_PORT || '3456', 10)
-  const server = startServer(port)
-  console.log(`[Bun.serve] Claude Code Agent server listening on http://127.0.0.1:${port}`)
+  const host = process.env.SERVER_HOST || '0.0.0.0'
+  const server = startServer(port, host)
+  console.log(`[Bun.serve] Claude Code Agent server listening on http://${host}:${port}`)
 }
