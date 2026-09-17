@@ -42,25 +42,10 @@ jobs:
               git clone https://github.com/${{ github.repository }}.git .
             fi
 
-            # Deploy using Docker Compose if docker exists, else use Bun directly
-            if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-              echo "🐳 Deploying via Docker Compose..."
-              docker compose down --remove-orphans || true
-              docker compose build
-              docker compose up -d
-            else
-              echo "🥟 Deploying via Bun runtime..."
-              if ! command -v bun >/dev/null 2>&1; then
-                curl -fsSL https://bun.sh/install | bash
-                export PATH="$HOME/.bun/bin:$PATH"
-              fi
-              bun install --production
-              
-              # Restart systemd or background daemon
-              pkill -f "src/server/index.ts" || true
-              nohup bun run src/server/index.ts > server.log 2>&1 &
-            fi
-
+            # Deploy via Bun runtime and Systemd service
+            /usr/local/bin/bun install --production
+            systemctl restart claude-code-agent.service
+            
             echo "✅ Deployment completed successfully! Testing health check:"
             sleep 2
             curl -f http://127.0.0.1:3456/health || echo "⚠️ Warning: Health check timed out"

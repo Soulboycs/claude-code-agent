@@ -19,7 +19,8 @@
     "test:bun": "bun test tests/",
     "test": "bun test tests/",
     "test:vitest": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy": "python scripts/deploy.py"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.1",

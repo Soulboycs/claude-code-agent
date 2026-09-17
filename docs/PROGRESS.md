@@ -24,3 +24,8 @@
 | **独立终端 CLI (agent-cli)** | `bin/agent-cli` | 冒烟验证通过 | `bun run bin/agent-cli` | 独立控制台瞬启交互通过 |
 | **Electron 桌面端工作台** | `src/main/` & `src/renderer/` | 生产构建通过 | `npm.cmd run build` | 产出 `out/main/`, `out/renderer/` |
 | **测试真实性审计报告** | `TEST-QUALITY-AUDIT.md` | 审查通过 | - | 零假绿、真实调用、覆盖负例 |
+| **GitHub 仓库版本托管** | `https://github.com/Soulboycs/claude-code-agent` | 已上线 | `git remote -v` | 主干追踪、多提交原子记录 |
+| **云服务器历史资源清理** | 生产宿主机 `117.72.101.76` | 已完成 | `df -h /` | 释放 30GB+ 空间，可用扩增至 36GB (37%)，内存释放至 2.7GB 可用 |
+| **云端 Bun 服务守护与 CI/CD** | Systemd `claude-code-agent.service` | 运行中 | `systemctl status` | Bun 1.4.2 常驻运行 (内存占用仅 5.5MB) |
+| **远程公网服务探针与网关** | Nginx 反向代理 + 本地直连 | 验证通过 | `curl http://117.72.101.76/health` | HTTP 200 OK、REST 会话创建、WebSocket 握手通畅 |
+

@@ -28,6 +28,7 @@ tmp/
 .env
 .env.local
 .env.*.local
+*.zip
 
 # OS files
 .DS_Store

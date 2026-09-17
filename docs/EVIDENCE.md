@@ -69,3 +69,41 @@ Thinking about the request...Default mock response.[Status: completed] Task fini
   - `out/preload/index.mjs` (1.57 kB)
   - `out/renderer/index.html` + `index.css` (37.68 kB) + `index.js` (1.12 MB)
 - **退出状态码**: 0
+
+---
+
+## 证据条目 5: 生产服务器深度清理验证
+
+- **执行时间**: 2026-09-17 13:28:22
+- **目标机器**: `117.72.101.76` (Ubuntu 22.04 LTS, 宝塔面板)
+- **清理动作**: 停止并彻底清理 8 个历史大容器 (`faceai`, `neo4j`, `qdrant`, `minio`, `pgvector`, `grafana`, `prometheus`, `redis`)、删除 16.5GB 镜像与 16.7GB Docker 构建缓存、清理 journal 日志与 apt 缓存。
+- **清理结果 (`df -h /`)**:
+```text
+清理前: /dev/vda3  59G  51G  5.9G  90% /
+清理后: /dev/vda3  59G  21G   36G  37% /
+内存状态: used 758M / available 2776M (原 swap 1024M 占满已释放至 295M)
+```
+
+---
+
+## 证据条目 6: 远程云端服务运行与公网健康检查探针
+
+- **执行时间**: 2026-09-17 13:42:20
+- **服务守护**: Systemd `claude-code-agent.service` (Bun 1.4.2 原生运行，内存 5.4MB)
+- **网关代理**: 宝塔 Nginx 端口 80 / 8070 统一反向代理至 `127.0.0.1:3456`，支持 WebSocket Upgrade。
+- **本地公网验证命令与输出**:
+
+```bash
+# 1. 公网网关健康检查探针
+$ curl.exe -s http://117.72.101.76/health
+{"status":"ok","runtime":"bun","version":"1.4.2","timestamp":"2026-09-17T05:42:16.622Z"}
+
+# 2. REST API 会话创建与查询
+$ python -c "import urllib.request; resp=urllib.request.urlopen('http://117.72.101.76/api/sessions'); print(resp.read().decode())"
+[{"id":"sess_1789623269672_f8kno","title":"Production Verification Session","workDir":"/opt/claude-code-agent","permissionMode":"default","createdAt":1789623269672,"updatedAt":1789623269672}]
+
+# 3. 远程 WebSocket 实时全双工握手
+$ bun -e "const ws = new WebSocket('ws://117.72.101.76/ws/sess_test'); ws.onmessage = e => console.log('WS MSG:', e.data);"
+WS MSG: {"type":"connected","sessionId":"sess_test"}
+```
+- **判定**: **通过 (PASSED)**，生产云环境与公网接入完全就绪。
