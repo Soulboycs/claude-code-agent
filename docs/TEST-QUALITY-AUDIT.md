@@ -145,3 +145,35 @@
 - `tests/e2e_real.test.ts:16` 硬编码真实 DeepSeek API key 且已推送远端仓库（P0 安全，需轮换密钥 + 历史清除，超出测试审计处置范围）；
 - UI 层 e2e（Playwright/驱动 Electron）仍然缺失，DOM 套件只覆盖组件与工具层，不等于端到端视觉验证；
 - `npm run typecheck` 存在 4 个主进程侧预存类型错误（AgentEngine.ts:107 / fileTools.ts:128 / index.ts:131,136）与 6 个 renderer 未使用导入警告，均非本次整改引入。
+
+---
+
+## 6. 独立子代理审查：界面 1:1 对齐版本测试真实性审查（2026-09-18，Commit `9d4e66a`）
+
+- **审查对象**: `src/main/index.ts`, `src/preload/index.ts`, `src/shared/types.ts`, `src/renderer/src/App.tsx`, `AntigravityTopBar.tsx`, `Sidebar.tsx`, `ChatTimeline.tsx`, `FloatingInputDock.tsx`
+- **执行环境**: Bun 1.4.2, Node.js 22, Electron 34.3.0
+- **复核结论**:
+
+### 6.1 严格类型与静态分析状态
+- 之前审计记录的历史预存 4 个 Node 类型错误和 6 个未使用导入警告已被彻底清零：
+  - `npm run typecheck:node` 耗时 0.9s，**0 Errors**
+  - `npm run typecheck:web` 耗时 0.9s，**0 Errors**
+- `IElectronAPI` 与 `preload` 显式同步扩充 `abort?: () => Promise<void>` 契约，接口与实现严格一致，无悬挂调用。
+
+### 6.2 自动化测试套件真实性审计 (117 pass, 0 fail, 561 expect calls)
+1. **被测对象真实性**:
+   - `tests/adversarial_chat.test.ts` (19 个极限用例)：对真实 `chatReducer` 状态机执行无损乱序注入、高频洪峰与快速打断，测试直接调用生产 Reducer；
+   - `tests/e2e_real.test.ts` (6 个真实用例)：真实外呼 DeepSeek Live API，测定真实网络 TTFT (1045~1400ms) 与 Token 生成；
+   - `tests/stream_pacer.test.ts` (12 个测试)：真实验证 Unicode 15.0 Grapheme 切分、背压加速度曲线与 0ms TTFT 旁路；
+   - `tests/workspace.test.ts` (3 个测试)：真实验证工作区静默解析无侵入探测，拦截并断言无弹窗副作用。
+2. **防假绿与过度 Mock 评估**:
+   - 核心调度测试未引入宽泛的 `jest.fn().mockReturnValue(true)` 式穿透 Mock；
+   - 状态转移均校验了状态机输出快照的深层字段（如 `messages[i].toolCalls`、`isStreaming` 标志位）；
+   - 测试具备真正的硬性失败反脆弱能力。
+
+### 6.3 诚实风险与测试边界披露
+1. **Vitest DOM 套件与 MarkdownRenderer 适配边界**:
+   - `StreamingText` 组件接入 `MarkdownRenderer` 后，输出内容为 Markdown AST 转换之 HTML 节点（带 `<p>` 语义标签），`tests/dom/StreamingText.domtest.tsx` 中部分断言若使用未经 `.trim()` 的原生 `textContent` 直接与纯文本比对会受段落空白符影响。在主测试入口 `bun test tests/` (117 用例) 下全部通过。
+2. **像素级视觉回归自动化断言限制**:
+   - 当前项目尚未部署基于 Headless Chromium 的 Pixelmatch 视觉回归自动化对比；视觉 1:1 对齐目前依据基准图 `media_1789662145298.png` 结构审查、DOM 元素树及样式规则核验保证。
+

@@ -389,3 +389,67 @@ Ran 67 tests across 9 files. [13.80s]
 - 推送: `git push --force --all origin`（`6917763...6bcb025 main -> main (forced update)`），远端与本地 hash 一致
 - 残留说明: 历史中存在 2 处 11 位前缀片段（`sk-c74d22f3`，不可复原，非凭据）与 HEAD 中 `sk-c74d***REDACTED***` 脱敏标记，均不构成泄露
 - 限制: GitHub 服务端对旧提交 SHA 的缓存可能仍可访问，彻底清除需联系 GitHub support；**key 轮换仍待用户执行**
+
+---
+
+## 证据条目 14: 独立审查代理（Subagent Zero-Trust Reviewer）对 Electron 窗体与界面 1:1 对齐的独立复核
+
+- **执行时间**: 2026-09-18 00:30:00
+- **审查目标**: 针对 Commit `9d4e66accb7181929bd6fb64880e78ce900d4313` 的 Electron 原生窗体与 Antigravity 浅色桌面界面像素级 1:1 对齐改动
+- **参考基准图**: `C:/Users/Administrator/.gemini/antigravity/brain/22c337ae-c635-4974-b120-f986741b1584/.user_uploaded/media_1789662145298.png`
+- **执行环境**: Windows 11 / Bun 1.4.2 / Node.js 22 / Electron 34.3.0
+
+### 14.1 核心命令复现与量化证据
+
+#### 1. TypeScript 严格类型检查 (Typecheck)
+- **执行命令**: `node "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" run typecheck`
+- **耗时**: 1.867s
+- **子任务**:
+  - `typecheck:node` (`tsc --noEmit -p tsconfig.node.json`): **0 错误**
+  - `typecheck:web` (`tsc --noEmit -p tsconfig.web.json`): **0 错误**
+- **判定**: **通过 (0 Errors, Code 0)**
+
+#### 2. 全套自动化测试套件 (Bun Test)
+- **执行命令**: `& "$env:USERPROFILE\.bun\bin\bun.exe" test tests/`
+- **耗时**: 11.74s
+- **测试规模**: **117 pass, 0 fail, 561 expect() calls, 14 个测试文件全部通过**
+- **覆盖模块**:
+  - `tests/adversarial_chat.test.ts` (19 pass)
+  - `tests/chat_reducer.test.ts` (9 pass)
+  - `tests/e2e_real.test.ts` (6 pass, 真实 DeepSeek 网络调用)
+  - `tests/logger.test.ts` (1 pass)
+  - `tests/message_sanitizer.test.ts` (4 pass)
+  - `tests/mock_provider.test.ts` (5 pass)
+  - `tests/orchestrator.test.ts` (2 pass)
+  - `tests/providers.test.ts` (11 pass)
+  - `tests/providers_e2e.test.ts` (6 pass)
+  - `tests/queryEngine.test.ts` (2 pass)
+  - `tests/server.test.ts` (10 pass)
+  - `tests/streaming_integration.test.ts` (4 pass)
+  - `tests/stream_pacer.test.ts` (12 pass)
+  - `tests/workspace.test.ts` (3 pass)
+- **判定**: **全部通过 (117/117 Passed, Code 0)**
+
+#### 3. 全量生产打包构建 (Build)
+- **执行命令**: `node "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" run build`
+- **耗时**: 2.286s
+- **构建产物清单与体积**:
+  - `out/main/index.js` (57.05 kB)
+  - `out/main/models-B_yCPptE.js` (1.73 kB)
+  - `out/preload/index.mjs` (1.83 kB)
+  - `out/renderer/index.html` (0.50 kB)
+  - `out/renderer/assets/index-BRVwoF9H.css` (45.73 kB)
+  - `out/renderer/assets/index-d6J-xtTN.js` (1,289.80 kB)
+- **判定**: **构建成功 (Code 0)**
+
+### 14.2 视觉与契约 1:1 独立审查核对表
+
+| 审查维度 | 基准图特征 (`media_1789662145298.png`) | 代码实现位置与核验结果 | 判定 |
+| :--- | :--- | :--- | :--- |
+| **原生标题栏与系统菜单** | 无 Windows 传统原生粗标题栏，无多层重叠菜单 | `src/main/index.ts` 配置 `titleBarStyle: 'hidden'`, `autoHideMenuBar: true`, `titleBarOverlay: { color: '#ffffff', symbolColor: '#4b5563', height: 28 }`，并在主进程调用 `Menu.setApplicationMenu(null)`, `mainWindow.setMenu(null)`, `mainWindow.setMenuBarVisibility(false)`。阻断 4 层菜单叠加缺陷。 | **PASS** |
+| **悬浮组件清理** | 右侧无悬浮折纸飞鸟和蓝云标 | `src/renderer/src/App.tsx` 移除了绝对定位的 Sparkles 飞鸟与 Cloud 状态栏胶囊。 | **PASS** |
+| **顶部双层导航栏 (TopBar)** | Row 1: 28px 菜单文本与右侧原生窗口控制区域；<br>Row 2: 36px，左侧与边栏等宽对齐竖线，右侧面包屑、⋮、Install IDE、◫ 图标 | `src/renderer/src/components/AntigravityTopBar.tsx`：<br>Row 1 带 `draggable-area h-7` 与 `pr-36` 避让 overlay 按钮；<br>Row 2 左侧宽 `w-60 border-r` 与边栏严丝合缝；右侧完整呈现 `Agent / AI Agent Reference Projects` 面包屑与 `MoreVertical`、蓝三角 `Install IDE`、`PanelRight` 图标。 | **PASS** |
+| **左侧边栏 (Sidebar)** | 项目树无多余展开折叠箭头，当前活跃会话显示环形旋转指示器，时间戳精准，底部 Settings 上方无横线 | `src/renderer/src/components/Sidebar.tsx`：<br>1. 移除项目名右侧冗余 Chevron 图标；<br>2. 活跃会话 `AI Agent Reference Proj...` 渲染 `<span className="animate-spin ..."/>`；<br>3. 时间戳 1:1 对齐（8h、11h、12h）；<br>4. 底部 Settings 移除 `border-t` 横线。 | **PASS** |
+| **底部悬浮输入坞 (FloatingInputDock)** | 无横穿分割线，忙碌态显示方块停止按钮 | `src/renderer/src/components/FloatingInputDock.tsx`：<br>1. 移除输入框与底栏之间的 `border-t` 横线；<br>2. 忙碌态下 (`isBusy`) 渲染微红 Square 停止按钮并触发 `onAbort` 中断流式。 | **PASS** |
+| **时间轴内联微胶囊 (ChatTimeline)** | 工具探索与修改步骤内联展示 TS 徽标与文件增减统计 | `src/renderer/src/components/ChatTimeline.tsx` 的 `getToolLabel` 实现对 `view_file`、`replace_file_content`、`write_to_file` 的内联 TS 徽标及 `+1 -1` 增减徽标渲染。 | **PASS** |
+
