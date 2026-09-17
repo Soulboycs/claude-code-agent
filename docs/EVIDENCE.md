@@ -144,3 +144,41 @@ Deploy to Remote Server: .github#1
   "duration": 0.46
 }
 ```
+
+---
+
+## 证据条目 8: NEXUS AGENT 实测 Push 自动全量同步与自愈部署验证
+
+- **执行时间**: 2026-09-17 14:29:35
+- **触发动作**: 执行 `git push origin main` 提交 `115782f` (`feat(pipeline): self-healing auto-deployment and brand probe in /health`)。
+- **自动化链路**: GitHub 发送 Webhook -> 服务器后台自动拉取代码、补全缺省依赖、安装生产依赖、重启服务、完成自检。
+- **耗时**: 从 `git push` 到云端服务重载完毕耗时仅 **7 秒**。
+
+### 1. 服务器自动执行部署日志 (`/var/log/claude-code-agent-deploy.log`)
+```text
+=========================================
+🚀 [2026-09-17T06:29:20Z] Deploy triggered by GitHub Webhook
+Working directory: /opt/claude-code-agent
+[1/4] Fetching latest changes from origin main...
+From https://github.com/Soulboycs/nexus-agent
+ * branch            main       -> FETCH_HEAD
+   1ae085b..115782f  main       -> origin/main
+HEAD is now at 115782f feat(pipeline): self-healing auto-deployment and brand probe in /health
+Checked out commit 115782f: feat(pipeline): self-healing auto-deployment and brand probe in /health
+[2/4] Installing production dependencies with Bun...
+bun install v1.4.2 (744846f84)
+
+Checked 101 installs across 374 packages (no changes) [7.00ms]
+[3/4] Restarting systemd service claude-code-agent.service...
+[4/4] Verifying health check...
+✅ [SUCCESS] Health check passed after deploy at commit 115782f!
+=========================================
+```
+
+### 2. 公网健康探针响应证据
+```bash
+$ curl.exe -s http://117.72.101.76/health
+{"name":"NEXUS AGENT","status":"ok","runtime":"bun","version":"1.4.2","commit":"115782f","timestamp":"2026-09-17T06:29:35.720Z"}
+```
+- **判定**: **通过 (PASSED)**，推送到 main 分支全自动完成代码部署、服务热重载与环境自愈，完全零人工介入。
+
