@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -e
+export HOME="${HOME:-/root}"
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 DEPLOY_LOG="/var/log/claude-code-agent-deploy.log"
 mkdir -p "$(dirname "$DEPLOY_LOG")"

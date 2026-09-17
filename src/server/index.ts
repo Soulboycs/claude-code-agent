@@ -63,7 +63,7 @@ export function triggerDeployTask(branch: string, commit?: string) {
     if (fs.existsSync('/usr/bin/systemd-run')) {
       const unitName = `claude-deploy-${Date.now()}`
       try {
-        Bun.spawn(['/usr/bin/systemd-run', `--unit=${unitName}`, '/bin/bash', '-c', bashCmd], {
+        Bun.spawn(['/usr/bin/systemd-run', `--unit=${unitName}`, '--setenv=HOME=/root', '/bin/bash', '-c', bashCmd], {
           stdout: 'inherit',
           stderr: 'inherit',
         })
