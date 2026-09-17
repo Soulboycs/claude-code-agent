@@ -10,6 +10,9 @@ jobs:
   test:
     name: Bun Tests & Electron Build Verification
     runs-on: [self-hosted, Linux, X64]
+    env:
+      CI: false
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
     steps:
       - name: Checkout Code
@@ -17,7 +20,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          CI=false /usr/local/bin/bun install --registry https://registry.npmmirror.com
+          /usr/local/bin/bun install --registry https://registry.npmmirror.com
 
       - name: Run Bun Core Architecture Tests (Evidence Gate)
         run: |
