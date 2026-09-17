@@ -303,5 +303,28 @@ describe('Chat State Machine — MessageBlock 有序时序流水线 (Interleaved
     expect(blocks[1].type).toBe('tool')
     expect(blocks[2].type).toBe('text')
   })
+
+  // ─── 2026-09-18 变异审计补测：猎杀存活体 R2 / R6 ───
+
+  it('R2: shows placeholder on completed turn with empty content (no silent blank cards)', () => {
+    state = startUserTurn(state, 'Are you there?', 'turn_empty_1')
+    // 无任何 message_delta/thinking_delta 即完成 —— 空响应场景
+    state = chatReducer(state, { type: 'status_change', status: 'completed' })
+    const asst = state.messages.find((m) => m.id === 'turn_empty_1')!
+    expect(asst.isStreaming).toBe(false)
+    expect(asst.content).toBe('(No response returned from model)') // 兜底文案缺失 = 气泡空白回归
+  })
+
+  it('R6: appends identical error message only once when duplicate error events arrive (transport retry)', () => {
+    state = startUserTurn(state, 'Retry me', 'turn_err_dup')
+    state = chatReducer(state, { type: 'message_delta', delta: 'Partial answer before failure' })
+    // 传输层重试导致同一 error 事件重复到达两次
+    state = chatReducer(state, { type: 'error', message: 'API connection reset' })
+    state = chatReducer(state, { type: 'error', message: 'API connection reset' })
+    const asst = state.messages.find((m) => m.id === 'turn_err_dup')!
+    const occurrences = asst.content.split('[Error: API connection reset]').length - 1
+    expect(occurrences).toBe(1) // 去重失效 = [Error: X] 刷屏回归
+    expect(asst.content).toContain('Partial answer before failure')
+  })
 })
 
