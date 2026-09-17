@@ -453,3 +453,34 @@ Ran 67 tests across 9 files. [13.80s]
 | **底部悬浮输入坞 (FloatingInputDock)** | 无横穿分割线，忙碌态显示方块停止按钮 | `src/renderer/src/components/FloatingInputDock.tsx`：<br>1. 移除输入框与底栏之间的 `border-t` 横线；<br>2. 忙碌态下 (`isBusy`) 渲染微红 Square 停止按钮并触发 `onAbort` 中断流式。 | **PASS** |
 | **时间轴内联微胶囊 (ChatTimeline)** | 工具探索与修改步骤内联展示 TS 徽标与文件增减统计 | `src/renderer/src/components/ChatTimeline.tsx` 的 `getToolLabel` 实现对 `view_file`、`replace_file_content`、`write_to_file` 的内联 TS 徽标及 `+1 -1` 增减徽标渲染。 | **PASS** |
 
+
+---
+
+## 证据条目 14: 三代理对抗性复核与测试资产治理（2026-09-18）
+
+**独立三代理复核**（A 分支覆盖 / B 链路覆盖+垃圾识别 / C 变异+攻击探测），主代理对关键声称逐项复验后执行治理。
+
+### 14.1 变异测试（C 报告 + 主代理复验）
+- C 注入 24 变异体：16 KILLED / 8 SURVIVED；主代理复验全部存活体并处置：
+  - T2/T3/T5（被 4 条红测遮蔽）：修复 domtest 断言适配 MarkdownRenderer（marked 尾随 \n）后 **全部 KILLED**（13p/1f、13p/1f、11p/3f）
+  - R2 空响应兜底 / R6 重复 error 去重 / F1a 迟滞带 / P3 199-200 边界：新增 4 测试后**全部 KILLED**
+  - R1 为等价变异体（map 对 null id 天然短路），无需处置
+- 攻击性探测发现真缺陷：StreamPacer ≥~70 万字素单块追加栈溢出（push 展开爆栈）——并行代理已在途修复（CHUNK_SIZE=16384 分块推入），C 复验 1MB 通过（41 帧排空）
+
+### 14.2 垃圾测试清理（B 分级 G1/G2/G3 + 主代理复验）
+- 删除 11 例 G3：workspace 整文件（3 永真）、adversarial 工作区镜像 3 例、跨文件重复场景 5 例（adversarial 2 + streaming_integration 3）
+- 重写 9 例近永真为强断言：providers 工厂 6→4（instanceof+baseURL 重映射）、models 阈值 1 删、providers_e2e 2 例（setProvider 真实接管 / maxSteps 精确停点）
+- 重写杀伤力验证：M-F1(deepseek baseURL 覆盖删除)/M-F2(maxSteps+10)/M-F3(setProvider 空操作) 全 KILLED
+
+### 14.3 缺陷修复
+- R1（A 发现）：StreamingText 主 effect 丢失 rAF cleanup —— 父级 finalize 换装 MarkdownRenderer 卸载组件后循环残留 setState。已补单一 cleanup，vitest 15/15
+
+### 14.4 最终门禁
+- `bun test tests/`：**108 pass / 0 fail**（13 files；119 基线 − 11 垃圾 + 3 新增，e2e_real 6 例真实 API 全过）
+- `npm run test:vitest`：**15 pass / 0 fail**
+- `npm run typecheck:web`：**0 错误**
+
+### 14.5 遗留（未处置，需用户决策）
+- SSE 解析层/Anthropic/Gemini 适配器/Electron 引擎工具循环 零单测（B Top5 风险，建议专项补测）
+- 双引擎结构（Electron AgentEngine vs sidecar query.ts）覆盖假象
+- A 的 R2-R6 分支级缺口（非终态 status_change 落空分支、finalize settle running 工具块等）
