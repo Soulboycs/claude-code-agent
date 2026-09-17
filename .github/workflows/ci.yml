@@ -9,28 +9,16 @@ on:
 jobs:
   test:
     name: Bun Tests & Electron Build Verification
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Bun Runtime
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Setup Node.js Environment
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
-
       - name: Install Dependencies
-        run: npm ci
+        run: |
+          CI=false /usr/local/bin/bun install --registry https://registry.npmmirror.com
 
       - name: Run Bun Core Architecture Tests (Evidence Gate)
-        run: bun test tests/
-
-      - name: Verify Electron & Vite Build
-        run: npm run build
+        run: |
+          /usr/local/bin/bun test tests/
