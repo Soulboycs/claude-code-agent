@@ -64,3 +64,28 @@ export function resolveMentions(
   }
   return { delegatedSessionIds, docPaths }
 }
+
+/**
+ * 会话可区分标签(M4,回应"@ 了分不清哪个"):
+ * 真实标题 → 最近任务摘要 + 短编号 → 空会话标记 + 短编号;同名自动追加序号。
+ * usedNames 由调用方在同一次候选构建中共享(跨会话去重)。
+ */
+export function buildSessionLabel(
+  title: string,
+  lastPrompt: string | undefined,
+  sessionId: string,
+  usedNames: Map<string, number>
+): string {
+  const shortId = sessionId.slice(-4)
+  let base: string
+  if (title && title !== 'New Conversation' && title !== 'New Session') {
+    base = title
+  } else if (lastPrompt && lastPrompt.trim()) {
+    base = lastPrompt.trim().slice(0, 20) + '… #' + shortId
+  } else {
+    base = '空会话 #' + shortId
+  }
+  const n = usedNames.get(base) ?? 0
+  usedNames.set(base, n + 1)
+  return n === 0 ? base : `${base} #${n + 1}`
+}

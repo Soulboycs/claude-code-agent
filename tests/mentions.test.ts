@@ -46,3 +46,22 @@ describe('resolveMentions — M3 发送解析', () => {
     expect(r.delegatedSessionIds).toEqual(['sess-B'])
   })
 })
+
+import { buildSessionLabel } from '../src/renderer/src/utils/mentions'
+
+describe('buildSessionLabel — M4 会话可区分标签(三级回退+去重)', () => {
+  it('M4a: 有真实标题 → 用标题', () => {
+    expect(buildSessionLabel('论文分析', undefined, 'sess-1234', new Map())).toBe('论文分析')
+  })
+  it('M4b: 默认标题 → 用最近任务摘要 + 短编号', () => {
+    const label = buildSessionLabel('New Conversation', '帮我改第三章', 'sess-1234', new Map())
+    expect(label).toBe('帮我改第三章… #1234')
+  })
+  it('M4c: 空会话 → 空会话标记 + 短编号', () => {
+    expect(buildSessionLabel('New Conversation', undefined, 'sess-1234', new Map())).toBe('空会话 #1234')
+  })
+  it('M4d: 同名去重追加序号', () => {
+    const used = new Map([['数据分析', 1]])
+    expect(buildSessionLabel('数据分析', undefined, 'sess-5678', used)).toBe('数据分析 #2')
+  })
+})

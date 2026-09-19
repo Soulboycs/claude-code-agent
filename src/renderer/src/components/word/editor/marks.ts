@@ -413,6 +413,7 @@ export const RprChangeMark = Mark.create({
       {
         'data-rpr-change': '1',
         class: 'has-rpr-change',
+        'data-rpr-author': String(mark.attrs.author || ''),
         title: t('editorFormatChangeBy', {
           author: String(mark.attrs.author || t('editorUnknownAuthor')),
         }),

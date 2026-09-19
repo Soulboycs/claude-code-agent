@@ -12,8 +12,8 @@ function resolvePath(filePath: string, workspaceRoot: string): string {
 
 // 1. view_file Tool
 export const viewFileTool: AgentTool = {
-  name: 'view_file',
-  aliases: ['read_file', 'cat'],
+  name: 'Read', // 1:1 cc 命名（R5）；旧名 view_file/read_file/cat 保留为别名
+  aliases: ['view_file', 'read_file', 'cat'],
   description: 'View file content with line numbers. Supports slice notation with StartLine and EndLine (1-indexed).',
   searchHint: 'view file content with line numbers',
   isReadOnly: () => true,
@@ -66,8 +66,8 @@ export const viewFileTool: AgentTool = {
 
 // 2. write_to_file Tool
 export const writeToFileTool: AgentTool = {
-  name: 'write_to_file',
-  aliases: ['write_file', 'create_file'],
+  name: 'Write', // 1:1 cc 命名（R5）
+  aliases: ['write_to_file', 'write_file', 'create_file'],
   description: 'Create a new file or completely overwrite an existing file with the given content.',
   searchHint: 'create new file or overwrite entire file content',
   isDestructive: () => true,
@@ -115,8 +115,8 @@ export const writeToFileTool: AgentTool = {
 
 // 3. replace_file_content Tool
 export const replaceFileContentTool: AgentTool = {
-  name: 'replace_file_content',
-  aliases: ['edit_file', 'str_replace'],
+  name: 'Edit', // 1:1 cc 命名（R5）
+  aliases: ['replace_file_content', 'edit', 'edit_file', 'str_replace'],
   description: 'Precisely replace a target block of text with replacement content in an existing file.',
   searchHint: 'replace exact matching chunk of text in file',
   isDestructive: () => false,
@@ -194,8 +194,8 @@ export const replaceFileContentTool: AgentTool = {
 
 // 4. list_directory Tool
 export const listDirectoryTool: AgentTool = {
-  name: 'list_directory',
-  aliases: ['list_dir', 'ls', 'dir'],
+  name: 'LS', // 1:1 cc 风格命名（R5）
+  aliases: ['list_directory', 'list_dir', 'ls', 'dir'],
   description: 'List files and subdirectories in a directory with item count and file sizes.',
   searchHint: 'list files and subdirectories in folder with sizes',
   isReadOnly: () => true,

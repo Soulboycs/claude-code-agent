@@ -116,7 +116,7 @@ describe('各 provider 请求体携带完整 JSON Schema', () => {
   it('Anthropic: input_schema 含 required 与真实类型（回归：曾是全 string + required:[]）', async () => {
     const provider = new AnthropicProvider({ model: 'claude-3-5-sonnet', apiKey: 'k' } as any)
     await provider.chatStream([{ role: 'user', content: 'hi' }], tools, () => {})
-    const tool = captured[0].body.tools.find((t: any) => t.name === 'view_file')
+    const tool = captured[0].body.tools.find((t: any) => t.name === 'Read')
     expect(tool.input_schema.required).toContain('filePath')
     expect(tool.input_schema.required).not.toContain('startLine')
     expect(tool.input_schema.properties.filePath.type).toBe('string')
@@ -130,7 +130,7 @@ describe('各 provider 请求体携带完整 JSON Schema', () => {
     const p2 = new ResponsesProvider({ model: 'x', apiKey: 'k', baseURL: 'http://localhost:9/v1' } as any)
     await p2.chatStream([{ role: 'user', content: 'hi' }], tools, () => {})
     for (const cap of captured) {
-      const view = cap.body.tools.find((t: any) => t.function?.name === 'view_file')
+      const view = cap.body.tools.find((t: any) => t.function?.name === 'Read')
       expect(view.function.parameters.required).toContain('filePath')
       expect(['number', 'integer']).toContain(view.function.parameters.properties.startLine.type)
       const append = cap.body.tools.find((t: any) => t.function?.name === 'docx_append_content')
@@ -141,7 +141,7 @@ describe('各 provider 请求体携带完整 JSON Schema', () => {
   it('Gemini: 参数用大写类型且不携带 Gemini 不支持的关键字', async () => {
     const provider = new GeminiProvider({ model: 'gemini-2.0-flash', apiKey: 'k' } as any)
     await provider.chatStream([{ role: 'user', content: 'hi' }], tools, () => {})
-    const decl = captured[0].body.tools[0].functionDeclarations.find((t: any) => t.name === 'view_file')
+    const decl = captured[0].body.tools[0].functionDeclarations.find((t: any) => t.name === 'Read')
     expect(decl.parameters.type).toBe('OBJECT')
     expect(decl.parameters.properties.filePath.type).toBe('STRING')
     expect(decl.parameters.additionalProperties).toBeUndefined()

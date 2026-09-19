@@ -12,7 +12,7 @@ import {
   type DragStartEvent,
   pointerWithin
 } from '@dnd-kit/core'
-import { collectAllPanes, type LayoutNode, type SplitPosition, type TabTarget } from './layout-model'
+import { collectAllPanes, findPaneById, type LayoutNode, type SplitPosition, type TabTarget } from './layout-model'
 import { useLayoutStore } from './layout-store'
 import { resolveSplitDropPosition, type SplitDropPosition } from './drag-geometry'
 import { getTabTitle } from './tab-registry'
@@ -23,7 +23,7 @@ export type DragPayload =
   | { kind: 'tab'; tabId: string } // 已打开的 tab chip
 
 export interface DndUIState {
-  preview: { paneId: string; position: SplitDropPosition } | null
+  preview: { paneId: string; position: SplitDropPosition } | { paneId: string; kind: 'chip'; tabId: string; before: boolean } | null
   active: { title: string } | null
 }
 
@@ -68,7 +68,14 @@ export function WorkspaceDnd({ children }: { children: React.ReactNode }) {
   }
 
   const onDragOver = (e: DragOverEvent) => {
-    const over = e.over?.data.current as { kind?: string; paneId?: string; rect?: DOMRect } | undefined
+    const over = e.over?.data.current as { kind?: string; paneId?: string; tabId?: string; rect?: DOMRect } | undefined
+    if (over?.kind === 'tab-chip' && over.tabId && e.over?.rect) {
+      const tr = e.active.rect.current.translated
+      const cx = tr ? tr.left + tr.width / 2 : e.over.rect.left + e.over.rect.width / 2
+      const before = cx < e.over.rect.left + e.over.rect.width / 2
+      setPreview({ paneId: over.paneId!, kind: 'chip', tabId: over.tabId, before })
+      return
+    }
     if (!over || over.kind !== 'pane-drop' || !over.paneId || !e.over?.rect) {
       setPreview(null)
       return
@@ -99,11 +106,18 @@ export function WorkspaceDnd({ children }: { children: React.ReactNode }) {
       return
     }
 
-    if (over.kind === 'tab-chip' && over.paneId && over.tabId) {
+    if (over.kind === 'tab-chip' && over.paneId && over.tabId && e.over?.rect) {
+      const tr = e.active.rect.current.translated
+      const cx = tr ? tr.left + tr.width / 2 : e.over.rect.left + e.over.rect.width / 2
+      const before = cx < e.over.rect.left + e.over.rect.width / 2
+      const targetPane = findPaneById(useLayoutStore.getState().layout.root, over.paneId)
+      const idx = targetPane?.tabs.findIndex((t) => t.tabId === over.tabId) ?? -1
+      const prevId = before ? (targetPane && idx > 0 ? targetPane.tabs[idx - 1].tabId : undefined) : over.tabId
+      const front = before && idx <= 0
       if (payload.kind === 'tab') {
-        store.moveTabToPane(payload.tabId, over.paneId, over.tabId) // 插到该 chip 之后
+        store.moveTabToPane(payload.tabId, over.paneId, prevId, front)
       } else {
-        store.openTab(payload.target, { paneId: over.paneId, afterTabId: over.tabId })
+        store.openTab(payload.target, front ? { paneId: over.paneId } : { paneId: over.paneId, afterTabId: over.tabId })
       }
       return
     }
@@ -164,6 +178,7 @@ export function PaneDropZone({ paneId }: { paneId: string }) {
 export function DropPreviewOverlay({ paneId }: { paneId: string }) {
   const { preview } = useDndUI()
   if (!preview || preview.paneId !== paneId) return null
+  if (!('position' in preview)) return null // chip 插入 pill 由 TabBar 渲染
   const p = preview.position
   const style: React.CSSProperties =
     p === 'left'

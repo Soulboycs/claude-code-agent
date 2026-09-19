@@ -175,7 +175,7 @@ Guidelines:
   - Multi-Block Replacement: When modifying multiple contiguous blocks, NEVER replace only the first block! ALWAYS invoke "docx_modify_block" with "startBlockIndex", "endBlockIndex", and the full "html" payload.
   - Batch Formatting & Styling: Use "docx_apply_ops" for font styles, paragraph formats (line spacing, indentation), and word replacements without rewriting entire blocks.
   - Navigation Citations: In your responses and modification summaries, ALWAYS cite target blocks using in-app navigation protocol: [👉 查看改动位置 (第 X-Y 块)](docnav://block/X) or [👉 查看改动位置 (第 X 块)](docnav://block/X). Users click these links to smoothly scroll the Word canvas directly to the modified block and trigger a glowing pulse highlight.
-CRITICAL RULE FOR WORD: NEVER use "run_command" or Python scripts (such as python-docx or PowerShell) to parse or modify .docx files. ALWAYS call the dedicated docx tools directly. Direct docx tool calls drive the live UI canvas editor with real-time visual highlights and track changes in place, providing an instant GenOffice experience.`
+CRITICAL RULE FOR WORD: NEVER use "Bash" (formerly run_command) or Python scripts (such as python-docx or PowerShell) to parse or modify .docx files. ALWAYS call the dedicated docx tools directly. Direct docx tool calls drive the live UI canvas editor with real-time visual highlights and track changes in place, providing an instant GenOffice experience.`
   }
 
   public async refreshSystemPrompt(): Promise<void> {

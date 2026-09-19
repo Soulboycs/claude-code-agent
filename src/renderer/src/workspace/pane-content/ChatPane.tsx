@@ -10,9 +10,10 @@ import { useSessionChat } from '../../hooks/useSessionChat'
 import { sessionEventBus } from '../../utils/sessionEventBus'
 import { useLayoutStore } from '../layout-store'
 import { useLinkageStore } from '../linkage-store'
+import { findPaneById, collectAllPanes as collectPanes } from '../layout-model'
 import { usePaneHost } from '../pane-host-context'
 import { getSessionWordDoc, getRecentWordFiles } from '../../components/word/persistence'
-import { resolveMentions, type MentionCandidate } from '../../utils/mentions'
+import { resolveMentions, buildSessionLabel, type MentionCandidate } from '../../utils/mentions'
 import type { TabContentProps } from '../tab-registry'
 import type { TabTarget } from '../layout-model'
 
@@ -75,8 +76,16 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
       try {
         const sessions = (await window.electronAPI?.listSessions?.(host.workspace || undefined)) || []
         const docs = getRecentWordFiles()
+        const used = new Map<string, number>()
         setMentionCandidates([
-          ...sessions.slice(0, 10).map((s) => ({ type: 'session' as const, id: s.id, name: s.title })),
+          ...sessions
+            .filter((s) => s.id !== sessionId)
+            .slice(0, 10)
+            .map((s) => ({
+              type: 'session' as const,
+              id: s.id,
+              name: buildSessionLabel(s.title, s.lastPrompt, s.id, used)
+            })),
           ...docs.map((p) => ({ type: 'doc' as const, id: p, name: p.split(/[\/]/).pop() || p }))
         ])
       } catch {}
@@ -124,9 +133,7 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
           const fp = (event.toolCall.arguments as { filePath?: string })?.filePath
           if (fp) {
             link.setLastTouch(fp, sessionId)
-            if (!link.isSuppressed(fp)) {
-              useLayoutStore.getState().openTab({ kind: 'word', path: fp })
-            }
+            if (!link.isSuppressed(fp)) placeWordTab(fp)
           }
         }
       } else if (event.type === 'tool_call_complete') {
@@ -142,7 +149,40 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
     return unsubscribe
   }, [sessionId, host])
 
+  // 落位策略(§6.2 规则2):记忆 pane → 本会话 pane 旁新 split(此后复用)→ 聚焦 pane 兜底
+  const placeWordTab = (fp: string): void => {
+    const st = useLayoutStore.getState()
+    const link2 = useLinkageStore.getState()
+    const pref = link2.panePreference[sessionId]
+    if (pref && findPaneById(st.layout.root, pref)) {
+      st.openTab({ kind: 'word', path: fp }, { paneId: pref })
+      return
+    }
+    const ownPane = collectPanes(st.layout.root).find((p) =>
+      p.tabs.some((t) => t.target.kind === 'chat' && t.target.sessionId === sessionId)
+    )
+    if (ownPane) {
+      const r = st.splitPane(ownPane.id, 'right', { target: { kind: 'word', path: fp } })
+      if (r) {
+        link2.setPanePreference(sessionId, r)
+        return
+      }
+    }
+    st.openTab({ kind: 'word', path: fp })
+  }
+
   const saveActiveSessionRef = useRef<(() => Promise<void>) | null>(null)
+  // F7:pane 卸载(收回/关闭)前冲刷当前转录;之后持久化所有权交回 main(onTurnEnd)
+  useEffect(() => {
+    return () => {
+      void saveActiveSessionRef.current?.()
+      void window.electronAPI?.releasePersistOwner?.(sessionId)
+    }
+  }, [sessionId])
+  // 本 pane 存续期间由 renderer 负责落盘(main 跳过)
+  useEffect(() => {
+    void window.electronAPI?.claimPersistOwner?.(sessionId)
+  }, [sessionId])
   saveActiveSessionRef.current = async () => {
     const msgs = messagesRef.current
     if (!sessionId || msgs.length === 0) return
@@ -165,7 +205,7 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
       if (!prompt || statusRef.current === 'thinking' || statusRef.current === 'tool_executing') return
       if (statusRef.current === 'awaiting_confirmation') {
         try {
-          await window.electronAPI?.abortAgent?.()
+          await window.electronAPI?.abort?.(sessionId)
         } catch {}
       }
       const now = Date.now()
@@ -196,6 +236,10 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
       try {
         // P4 委派(§6.6 L3):@会话 → 任务发给目标会话(带来源标注),聚焦其 pane
         const resolved = resolveMentions(prompt, mentionCandidates)
+        if (resolved.delegatedSessionIds.length === 0 && resolved.docPaths.length > 0) {
+          // F3:@仅文档 → 上下文随本会话任务注入(评审缺口修复)
+          outgoingPrompt += '\n\n【涉及文档】(可直接用 docx 工具读写):\n' + resolved.docPaths.map((p) => '- ' + p).join('\n')
+        }
         if (resolved.delegatedSessionIds.length > 0) {
           const docLines = resolved.docPaths.length
             ? '\n\n【涉及文档】:\n' + resolved.docPaths.map((p) => '- ' + p).join('\n')
@@ -233,7 +277,7 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
 
   const handleAbort = useCallback(async () => {
     try {
-      await window.electronAPI?.abortAgent?.()
+      await window.electronAPI?.abort?.(sessionId)
     } catch (e) {
       console.error('[ChatPane] Failed to abort:', e)
     }

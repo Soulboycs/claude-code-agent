@@ -56,8 +56,8 @@ function patternToRegex(pattern: string): RegExp {
 }
 
 export const globTool: AgentTool = {
-  name: 'GlobTool',
-  aliases: ['glob', 'find_files', 'find_by_name'],
+  name: 'Glob', // 1:1 cc 命名（R5）；旧名合并为别名
+  aliases: ['GlobTool', 'glob', 'find_files', 'find_by_name'],
   description: 'Search for files by name pattern or wildcard (e.g. "*.ts", "src/**/*.tsx").',
   searchHint: 'fast file search by pattern wildcard glob',
   isReadOnly: () => true,
@@ -97,8 +97,8 @@ export const globTool: AgentTool = {
 }
 
 export const grepTool: AgentTool = {
-  name: 'GrepTool',
-  aliases: ['grep', 'search_text', 'grep_search'],
+  name: 'Grep', // 1:1 cc 命名（R5）；旧名合并为别名
+  aliases: ['GrepTool', 'grep', 'search_text', 'grep_search'],
   description: 'Search file contents with regex. Returns matching lines and line numbers.',
   searchHint: 'fast regex search across file contents',
   isReadOnly: () => true,

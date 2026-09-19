@@ -23,6 +23,8 @@ export interface SessionManagerOptions {
   createEngine: () => SessionEngineLike
   /** 合帧后的批量出站(S5 接线到 webContents.send) */
   onOutbound: (batch: OutboundAgentEvent[]) => void
+  /** turn 终止回调(持久化上移钩子,§7.1) */
+  onTurnEnd?: (sessionId: string) => void
   flushIntervalMs?: number
 }
 
@@ -86,7 +88,9 @@ export class SessionManager {
     } else if (BUSY_STATUSES.has(status)) {
       throw new Error(`Session ${sessionId} is busy (${status})`)
     }
-    return engine.run(prompt, { sessionId, ...opts })
+    const result = await engine.run(prompt, { sessionId, ...opts })
+    this.options.onTurnEnd?.(sessionId)
+    return result
   }
 
   abort(sessionId: string): boolean {

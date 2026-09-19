@@ -38,6 +38,8 @@ let sessionManager: SessionManager | null = null
 const sendMeter = new SendRateMeter()
 /** 跨会话文档写冲突检测(§6.2 规则5):全部引擎共享一份 */
 const docConflicts = new DocConflictDetector()
+/** renderer 声明落盘所有权的会话(pane 存续期间 main 跳过 onTurnEnd 落盘,防双写) */
+const rendererPersistOwned = new Set<string>()
 /** sessionId → 创建引擎时烘焙的 workspace(变更时销毁重建,不走 setWorkspaceRoot) */
 const engineWorkspace = new Map<string, string>()
 /** sessionId → 创建引擎时的 provider 指纹;save-config 后清空 = 全量失效,下次 send 惰性重建 */
@@ -269,6 +271,33 @@ async function initAgent() {
         sendMeter.record(performance.now())
         mainWindow.webContents.send('agent:event-batch', batch)
       }
+    },
+    onTurnEnd: (sid) => {
+      // §7.1 持久化上移(main 侧):仅当 renderer pane 未声明所有权时兜底落盘。
+      // 历史为 LLMMessage(无 blocks),确定性 id `${sid}_h${idx}` 保证幂等。
+      if (rendererPersistOwned.has(sid)) return
+      void (async () => {
+        try {
+          const engine = sessionManager?.getEngine(sid)
+          if (!engine) return
+          const history = (engine as unknown as { getConversationHistory(): Array<{ role: string; content: string }> }).getConversationHistory()
+          const transcript = history.filter((m) => m.role === 'user' || m.role === 'assistant')
+          const { sessionStore } = await import('./session/sessionStore')
+          const existing = await sessionStore.getSession(sid)
+          const base = existing ? existing.messages.filter((m) => m.role !== 'system').length : 0
+          for (let i = base; i < transcript.length; i++) {
+            const m = transcript[i]
+            await sessionStore.appendMessage(sid, {
+              id: `${sid}_h${i}`,
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              timestamp: Date.now() - (transcript.length - i)
+            })
+          }
+        } catch (err) {
+          logger.warn('MainProcess', 'onTurnEnd persistence failed:', err)
+        }
+      })()
     }
   })
 }
@@ -356,12 +385,25 @@ app.whenReady().then(async () => {
         logger.error('MainProcess', `Agent run error: ${msg}`, err)
         sessionManager!.fail(sid, msg)
       })
+      .finally(() => {
+        docConflicts.releaseSession(sid)
+      })
     pendingCreateCtx = null
   })
 
-  ipcMain.handle('agent:abort', async () => {
-    // 旧式无 sessionId 语义:中止全部会话(S7 接入按会话 abort)
-    sessionManager?.abortAll()
+  ipcMain.handle('session:claim-persist-owner', async (_, sessionId: string) => {
+    rendererPersistOwned.add(sessionId)
+    return true
+  })
+  ipcMain.handle('session:release-persist-owner', async (_, sessionId: string) => {
+    rendererPersistOwned.delete(sessionId)
+    return true
+  })
+
+  ipcMain.handle('agent:abort', async (_, sessionId?: string) => {
+    // 带sessionId=中止该会话(pane 停止按钮);无参=旧式全量中止
+    if (sessionId) sessionManager?.abort(sessionId)
+    else sessionManager?.abortAll()
   })
 
   ipcMain.handle(

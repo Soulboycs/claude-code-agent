@@ -5,6 +5,7 @@ import type { PaneState, SplitPosition, TabTarget } from './layout-model'
 import { getTabTitle } from './tab-registry'
 import { useLayoutStore } from './layout-store'
 import { useLinkageStore } from './linkage-store'
+import { useDndUI } from './WorkspaceDnd'
 import { normalizeKeyPath } from '@shared/paths'
 
 /**
@@ -25,6 +26,25 @@ export function TabBar({
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
   const [ctxMenu, setCtxMenu] = React.useState<{ tabId: string; x: number; y: number } | null>(null)
+  const linkage = useLinkageStore
+  const ctxWordPath = React.useMemo(() => {
+    if (!ctxMenu) return null
+    const t = pane.tabs.find((x) => x.tabId === ctxMenu.tabId)
+    return t && t.target.kind === 'word' ? t.target.path : null
+  }, [ctxMenu, pane])
+  const toggleFollow = (tid: string) => {
+    const st = linkage.getState()
+    const cur = st.followPaused[tid] === true
+    st.setFollowPaused(tid, !cur)
+  }
+  const suppressDoc = (tid: string) => {
+    const t = pane.tabs.find((x) => x.tabId === tid)
+    if (t && t.target.kind === 'word') linkage.getState().suppress(t.target.path)
+  }
+  const clearTouch = (tid: string) => {
+    const t = pane.tabs.find((x) => x.tabId === tid)
+    if (t && t.target.kind === 'word') linkage.getState().clearLastTouch(t.target.path)
+  }
   const splitPane = useLayoutStore((s) => s.splitPane)
   const closeTab = useLayoutStore((s) => s.closeTab)
   const closePane = useLayoutStore((s) => s.closePane)
@@ -66,10 +86,20 @@ export function TabBar({
       {ctxMenu && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null) }} />
-          <div className="fixed z-50 w-36 rounded-lg border border-neutral-200 bg-white shadow-lg py-1 text-xs" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
+          <div className="fixed z-50 w-44 rounded-lg border border-neutral-200 bg-white shadow-lg py-1 text-xs" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
             <button type="button" data-testid="ctx-close" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { runCtxClose(ctxMenu.tabId); setCtxMenu(null) }}>关闭</button>
             <button type="button" data-testid="ctx-close-others" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { runCtxOthers(pane, ctxMenu.tabId); setCtxMenu(null) }}>关闭其他</button>
             <button type="button" data-testid="ctx-close-right" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { runCtxRight(pane, ctxMenu.tabId); setCtxMenu(null) }}>关闭右侧</button>
+            {ctxWordPath && (
+              <>
+                <div className="my-1 border-t border-neutral-100" />
+                <button type="button" data-testid="ctx-toggle-follow" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { toggleFollow(ctxMenu.tabId); setCtxMenu(null) }}>
+                  {(ctxMenu && linkage.getState().followPaused[ctxMenu.tabId]) ? '恢复跟随' : '暂停跟随'}
+                </button>
+                <button type="button" data-testid="ctx-suppress" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { suppressDoc(ctxMenu.tabId); setCtxMenu(null) }}>不再自动打开</button>
+                <button type="button" data-testid="ctx-clear-touch" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { clearTouch(ctxMenu.tabId); setCtxMenu(null) }}>清除最近操作记忆</button>
+              </>
+            )}
           </div>
         </>
       )}
@@ -203,6 +233,12 @@ function DraggableChip({
   React.useEffect(() => {
     if (drag.isDragging) justDraggedRef.current = Date.now()
   }, [drag.isDragging])
+  // §5.2 chip 插入 pill:4px 竖条,依 before/after 定位
+  const { preview } = useDndUI()
+  const pillSide =
+    preview && 'kind' in preview && preview.kind === 'chip' && preview.paneId === pane.id && preview.tabId === tabId
+      ? preview.before ? 'left' : 'right'
+      : null
 
   return (
     <div
@@ -220,7 +256,7 @@ function DraggableChip({
         if (isWord) clearUpdated(wordPath)
       }}
       className={[
-        'group flex items-center gap-1.5 pl-3 pr-2 my-1 mx-0.5 rounded-md cursor-pointer whitespace-nowrap text-xs',
+        'group relative flex items-center gap-1.5 pl-3 pr-2 my-1 mx-0.5 rounded-md cursor-pointer whitespace-nowrap text-xs',
         active
           ? 'bg-white border border-neutral-300 shadow-xs text-neutral-900'
           : 'text-neutral-500 hover:bg-neutral-200/60',
@@ -228,6 +264,12 @@ function DraggableChip({
       ].join(' ')}
       style={{ minWidth: 96, maxWidth: 160 }}
     >
+      {pillSide && (
+        <span
+          data-testid={`pill-${tabId}-${pillSide}`}
+          className={`absolute top-1 bottom-1 w-[3px] rounded bg-blue-500 ${pillSide === 'left' ? '-left-[3px]' : '-right-[3px]'}`}
+        />
+      )}
       <span ref={drop.setNodeRef} className="truncate flex-1" title={getTabTitle(tab.target)}>
         {getTabTitle(tab.target)}
       </span>

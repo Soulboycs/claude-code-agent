@@ -424,3 +424,44 @@ cc-haha 的 `backfillObservableInput`（§6 决策 4）保证 hooks/审批/事�
 - §15.1 vitest「37 passed」当时整体 exit 1 → §15.5 更正并修复（现 exit 0）。
 - 进度.md 头部「415 测试/Phase1~5 放行」→ 本报告 supersede（总览已加时点注记）。
 - 交接手册 2026-09-17 版「7 项测试/待实现 subagents」→ 本批重写（全部已交付）。
+
+
+---
+
+## 13. R5 工具目录对齐（2026-09-20 深夜续）
+
+此前四轮对齐的是工具系统**机制**（§1 五层流水线）；R5 补齐**目录与命名**：
+
+### 13.1 命名正名（1:1 cc）
+
+| cc 正名 | 原名（降为别名） |
+| :--- | :--- |
+| Bash | run_command（+bash/powershell/exec/sh 原有别名保留） |
+| Read | view_file/read_file/cat |
+| Write | write_to_file/write_file/create_file |
+| Edit | replace_file_content/edit/edit_file/str_replace |
+| Glob | GlobTool/glob/find_files/find_by_name |
+| Grep | GrepTool/grep/search_text/grep_search |
+| LS | list_directory/list_dir/ls/dir |
+
+兼容性保障：registry 别名解析双名同对象；`isCommandToolName()` 供沙箱/级联/权限引擎三处特判双名覆盖；PermissionEngine 集合新旧名双写（回归用例锁定 7 组新旧名语义一致）；系统提示同步更新。cc 命名收益：生态提示词/skill/记忆按 cc 名字即插即用，且短名省 token。
+
+### 13.2 新增工具（cc 有我们无）
+
+| 工具 | 对标 | 实现 |
+| :--- | :--- | :--- |
+| **TodoWrite** | cc TodoWrite | 会话任务清单写入 `.nexus/todos.json`（原子语义：单 in_progress 约束，违者拒绝不落盘）；权限按 cc 归类为 plan 模式可用 |
+| **WebFetch** | cc WebFetch（简化） | HTTP(S) 抓取 → HTML 去标签/实体解码 → 截断（默认 20K，上限 100K）；仅 http(s)；15s 超时；错误结构化 |
+| **WebSearch** | cc WebSearch（简化） | DuckDuckGo HTML 后端解析（uddg 解码/内联标签剥离），前 N 条标题+URL；上游改版时返回结构化提示而非 crash |
+
+**如实披露的简化**：WebFetch 无 cc 的 domain 允许清单与 15 分钟缓存；WebSearch 为抓取实现（非 provider 内建 server-side search），上游改版属已知脆弱点（测试用 fixture 锁定解析器行为）。
+
+### 13.3 工具目录对照表（当前 22 个）
+
+| 类别 | 工具 |
+| :--- | :--- |
+| 核心文件/命令 | Bash、Read、Write、Edit、Glob、Grep、LS |
+| 任务/搜索 | TodoWrite、WebFetch、WebSearch、tool_search |
+| 代理/办公 | Agent、docx_create / read / read_revisions / append_content / modify_block / apply_ops / insert_table / delete_block / accept_revisions / reject_revisions |
+
+**仍未对齐的 cc 工具**（按需分批）：NotebookEdit、AskUserQuestion（可复用 HITL 通道）、EnterPlanMode/ExitPlanMode、TaskCreate/Get/Update/List/Stop（需后台任务基础设施）、Skill（可接 .agents/skills 加载器）、LSP、SendMessage/Team 系列（需 swarm）、Workflow、ImageGen/Edit、Cron 四件套、Monitor、PowerShell（独立工具，语义已含于 Bash）、WebBrowser、MCP 资源工具（ListMcpResources/ReadMcpResource，需 MCP 客户端接入）。

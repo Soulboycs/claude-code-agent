@@ -16,6 +16,7 @@ import type { PermissionEngine } from '../../main/agent/permissions/PermissionEn
 import type { SandboxGuard } from '../../main/agent/sandbox/SandboxGuard'
 import type { DocConflictDetector } from '../../main/agent/utils/docConflictDetector'
 import { ToolSearchManager, buildSchemaNotSentHint } from '../../main/agent/tools/ToolSearchTool'
+import { isCommandToolName } from '../../main/agent/utils/toolSchemas'
 import * as nodePath from 'path'
 import * as nodeOs from 'os'
 
@@ -297,7 +298,7 @@ export async function* query(params: QueryParams): AsyncGenerator<AgentEvent, Qu
       // 1. Sandbox Guard check (matches on the backfilled absolute paths)
       if (params.sandboxGuard) {
         let sandboxResult = { passed: true } as any
-        if (spec.name === 'run_command') {
+        if (isCommandToolName(spec.name)) {
           sandboxResult = params.sandboxGuard.validateCommand((observableArgs.CommandLine || observableArgs.command || '') as string)
         } else {
           // NOTE: our file/docx tools use `filePath` and list_directory uses
@@ -385,7 +386,7 @@ export async function* query(params: QueryParams): AsyncGenerator<AgentEvent, Qu
           const edited = cp.updatedInput
           if (params.sandboxGuard) {
             let sandboxResult = { passed: true } as any
-            if (spec.name === 'run_command') {
+            if (isCommandToolName(spec.name)) {
               sandboxResult = params.sandboxGuard.validateCommand(
                 (edited.CommandLine || edited.command || '') as string
               )
@@ -498,7 +499,7 @@ export async function* query(params: QueryParams): AsyncGenerator<AgentEvent, Qu
           // policy-checked): re-run the sandbox gate on the user-edited args.
           if (params.sandboxGuard) {
             let sandboxResult = { passed: true } as any
-            if (spec.name === 'run_command') {
+            if (isCommandToolName(spec.name)) {
               sandboxResult = params.sandboxGuard.validateCommand(
                 (updatedInput.CommandLine || updatedInput.command || '') as string
               )

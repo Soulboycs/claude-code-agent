@@ -16,6 +16,17 @@ export class DocConflictDetector {
     this.register(sessionId, rawPath)
   }
 
+  /** 会话结束/中止:释放其全部 in-flight 登记(防 review 指出的流中断路径泄漏) */
+  releaseSession(sessionId: string): void {
+    for (const [key, set] of this.active) {
+      set.delete(sessionId)
+      if (set.size === 0) this.active.delete(key)
+    }
+    for (const [callId, e] of [...this.calls]) {
+      if (e.sessionId === sessionId) this.calls.delete(callId)
+    }
+  }
+
   releaseCall(callId: string): void {
     const e = this.calls.get(callId)
     if (!e) return

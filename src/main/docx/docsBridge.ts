@@ -43,11 +43,16 @@ let getWinRef: (() => BrowserWindowType | null) | null = null
 
 // R11 路径寻址(计划 §6.4):path(canonical key)→ 就绪实例。多文档多 pane 下命令不再广播。
 import { normalizeKeyPath } from '../../shared/paths'
+import { allowDocRoot } from '../agent/sandbox/SandboxGuard'
 const wcIdByDocPath = new Map<string, number>()
 const docPathsByWcId = new Map<number, Set<string>>()
 
 function registerDocPath(wcId: number, rawPath: unknown): void {
   if (typeof rawPath !== 'string' || !rawPath) return
+  try {
+    const pathMod = require('path') as typeof import('path')
+    allowDocRoot(pathMod.dirname(pathMod.resolve(rawPath)))
+  } catch {}
   const key = normalizeKeyPath(rawPath)
   wcIdByDocPath.set(key, wcId)
   let set = docPathsByWcId.get(wcId)

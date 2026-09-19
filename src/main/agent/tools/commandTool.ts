@@ -5,8 +5,9 @@ import { AgentTool } from './ToolRegistry'
 const MAX_OUTPUT_LENGTH = 50000
 
 export const runCommandTool: AgentTool = {
-  name: 'run_command',
-  aliases: ['bash', 'powershell', 'exec', 'sh'],
+  // 1:1 cc 命名（R5）；旧名 run_command 等保留为别名兼容既有规则/会话
+  name: 'Bash',
+  aliases: ['run_command', 'bash', 'powershell', 'exec', 'sh'],
   description: 'Execute a shell command in the workspace. Streams output and captures stdout/stderr.',
   searchHint: 'execute terminal shell command in powershell or bash',
   interruptBehavior: () => 'cancel',

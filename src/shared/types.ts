@@ -185,7 +185,7 @@ export interface IElectronAPI {
   // Agent Control
   sendMessage: (prompt: string, workspacePath?: string, sessionId?: string) => Promise<void>
   abortAgent: () => Promise<void>
-  abort?: () => Promise<void>
+  abort?: (sessionId?: string) => Promise<void>
   respondApproval: (
     requestId: string,
     approved: boolean,
@@ -217,6 +217,9 @@ export interface IElectronAPI {
   saveSession?: (session: SessionRecord) => Promise<boolean>
   appendMessage?: (sessionId: string, message: ChatMessage) => Promise<boolean>
   forkSession?: (sessionId: string, fromMessageId: string, newTitle?: string) => Promise<SessionRecord | null>
+  /** 声明"该会话转录由 renderer pane 落盘"(pane 存续期间 main 跳过 onTurnEnd 落盘) */
+  claimPersistOwner?: (sessionId: string) => Promise<boolean>
+  releasePersistOwner?: (sessionId: string) => Promise<boolean>
   setActiveBranch?: (sessionId: string, leafMessageId: string) => Promise<SessionRecord | null>
   renameSession?: (sessionId: string, newTitle: string) => Promise<boolean>
   setSessionTag?: (sessionId: string, tag: string) => Promise<boolean>

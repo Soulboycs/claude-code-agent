@@ -2646,10 +2646,19 @@ export function App() {
     if (revAuthorFilter === null || revAuthorFilter.size === 0) return null
     const authors = revisionAuthors.filter((a) => revAuthorFilter.has(a))
     if (authors.length === revisionAuthors.length) return null
+    // escape for the attribute selector: a quote/backslash in a name would
+    // invalidate the whole rule and silently disable the filter
+    const esc = (a: string) => a.replace('\\', '\\\\').replace('"', '\\"')
     const keep = authors
-      .map((a) => `:not([data-ins-author="${a}"]):not([data-del-author="${a}"])`)
+      .map(
+        (a) =>
+          `:not([data-ins-author="${esc(a)}"]):not([data-del-author="${esc(a)}"]):not([data-rpr-author="${esc(a)}"])`,
+      )
       .join('')
-    return `.doc-ins${keep}, .doc-del${keep} { display: none !important; }`
+    // format revisions (has-rpr-change) carry only data-rpr-author: without
+    // them in the chain an unchecked author's format changes stayed visible
+    // while accept/reject-by-author still applied to them
+    return `.doc-ins${keep}, .doc-del${keep}, .has-rpr-change${keep} { display: none !important; }`
   }, [revAuthorFilter, revisionAuthors])
   const toggleRevAuthor = useCallback(
     (author: string) => {

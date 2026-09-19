@@ -1759,11 +1759,22 @@ export function generateParagraphXml(block: GeneratedBlock, ctx: GenerateContext
   children.push(...formatPPrChildren(block.format))
   if (block.paraMarkDel) {
     const d = block.paraMarkDel
-    children.push({
-      name: 'w:rPr',
-      xml:
-        `<w:rPr><w:del${revAttrsFor(d)}/></w:rPr>`,
-    })
+    const delXml = `<w:del${revAttrsFor(d)}/>`
+    // CT_PPr allows exactly ONE w:rPr: merge into the paragraph-mark rPr that
+    // formatPPrChildren already emitted (e.g. w:sz for empty-paragraph marks);
+    // CT_ParaRPr puts w:del first, before size/color children
+    const at = children.findIndex((c) => c.name === 'w:rPr')
+    if (at >= 0) {
+      const existing = children[at]!.xml
+      children[at] = {
+        name: 'w:rPr',
+        xml: existing.startsWith('<w:rPr/>')
+          ? `<w:rPr>${delXml}</w:rPr>`
+          : existing.replace(/<w:rPr>/, `<w:rPr>${delXml}`),
+      }
+    } else {
+      children.push({ name: 'w:rPr', xml: `<w:rPr>${delXml}</w:rPr>` })
+    }
   }
   if (block.pPrChange) {
     const revision = revisionPPrChangeXml(block.pPrChange)

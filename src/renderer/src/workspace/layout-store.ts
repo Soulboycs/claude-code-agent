@@ -68,7 +68,7 @@ interface LayoutStoreState extends LayoutState {
     position: SplitPosition,
     payload?: { tabId?: string; target?: TabTarget }
   ): string | null
-  moveTabToPane(tabId: string, toPaneId: string, afterTabId?: string): boolean
+  moveTabToPane(tabId: string, toPaneId: string, afterTabId?: string, front?: boolean): boolean
   reorderTabsInPane(paneId: string, tabIds: string[]): boolean
   closeTab(tabId: string): boolean
   closePane(paneId: string): boolean
@@ -126,8 +126,8 @@ export const useLayoutStore = create<LayoutStoreState>()(
         return r.paneId
       },
 
-      moveTabToPane(tabId, toPaneId, afterTabId) {
-        const next = moveTabToPaneInLayout(get(), tabId, toPaneId, afterTabId)
+      moveTabToPane(tabId, toPaneId, afterTabId, front) {
+        const next = moveTabToPaneInLayout(get(), tabId, toPaneId, afterTabId, front)
         if (!next) return false
         set(next)
         return true

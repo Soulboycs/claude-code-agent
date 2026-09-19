@@ -16,6 +16,7 @@ export const COMPACTABLE_TOOLS = new Set<string>([
   'read_file',
   'cat',
   'run_command',
+  'Bash',
   'bash',
   'powershell',
   'exec',

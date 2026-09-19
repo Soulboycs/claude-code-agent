@@ -53,10 +53,17 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
 
     const startLoop = (sealWhenDone: boolean) => {
       lastTimeRef.current = performance.now()
+      let lastCommit = 0
       const loop = (currentTime: number) => {
         const dt = currentTime - lastTimeRef.current
         lastTimeRef.current = currentTime
-        setDisplayedText(pacer.step(dt, sealWhenDone))
+        const next = pacer.step(dt, sealWhenDone)
+        // §8.2 降频:打字机插值 60fps,但 React 提交/markdown 解析节流至 ~11fps(90ms),
+        // 断开"每帧全量 marked.parse + DOMPurify"的 O(n²) 主链;完成帧强制提交
+        if (currentTime - lastCommit >= 90 || pacer.isDone()) {
+          lastCommit = currentTime
+          setDisplayedText(next)
+        }
         if (pacer.isDone()) {
           rafIdRef.current = null
           if (sealWhenDone) onComplete?.()

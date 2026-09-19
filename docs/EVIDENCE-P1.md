@@ -132,3 +132,22 @@
 - 门禁:bun **704 pass / 0 fail** · vitest **59/59** · 双 typecheck 干净 · `npm run build` ✓ 6.39s
 - 范围外修复:tests/providerNegative.test.ts 增加重试环境快路+恢复(用户 WIP providerHttp 重试风暴超 bun 5s 超时;env 进程级泄漏已用保存/恢复修复 R2/R4 交叉失败)
 - 偏差与限制(诚实):委派为全文转发非摘要压缩;@ 提及无键盘导航(点击选择);doc-conflict 为拒绝非审批;上下文预算未接 token 计数(骨架器自带 8000 字符上限);终端/浏览器/概览 pane 未注册;实机 GUI 8 会话压测待手测
+
+## E12 — 评审整改(响应 Reviewer A/B,2026-09-20)
+
+针对两份独立评审的 FAIL/PARTIAL 项,已逐项整改:
+
+| 评审项 | 整改 | 验证 |
+|---|---|---|
+| 取消联动三层不可操作(store-only) | TabBar 右键菜单(仅 word tab):暂停跟随/恢复跟随、不再自动打开、清除最近操作记忆 | TS+人工入口(角标/免打扰语义不变) |
+| 落位策略缺失(openTab 抢聚焦 pane) | placeWordTab:panePreference 存活→用它;否则本会话 pane 右侧 split+记忆;兜底聚焦 | 代码+TS |
+| @仅文档上下文被丢弃 | 非委派路径 docPaths 注入【涉及文档】 | TS |
+| allowDocRoot 死代码(R14 失实) | docsBridge.registerDocPath → allowDocRoot(dirname)(已打开文档目录动态放行) | 代码+TS |
+| docConflict 登记泄漏(流中断路径) | releaseSession(sid) 于 run finally | 单测 3/3 |
+| abort 无 per-session | agent:abort(sid?) + preload + ChatPane 传 sid;无参=全量(旧语义) | 代码+TS |
+| 持久化不上移(pane 收回丢转录) | 双保险:ChatPane 卸载冲刷 + persist owner 所有权(renderer 声明存续期,main onTurnEnd 兜底落盘,确定性 id 幂等) | 代码+TS |
+| MarkdownRenderer 每帧重解析(O(n²) 主链) | StreamingText pacer 提交节流 90ms(打字机 60fps 不变,解析 ~11fps),instant 路径已直显 | 测试 H 系列回归 |
+| chip 插入恒后插 + 无 pill 预览 | computeChipInsertion 接入 onDragOver(中心点 before/after)+ TabBar 4px pill;model moveTab 增加 front 前插 | TS+DOM |
+| providerNegative 超时(用户 WIP providerHttp 10 次重试风暴) | 测试文件设快路 env(锁定 3 次)+进程级保存/恢复(修复 R2/R4 交叉污染) | 4/4 |
+
+整改后门禁:`bun test tests/` **718 pass / 0 fail** · vitest **59/59** · 双 typecheck 干净(过滤用户 WIP:fileTools aliases 重复键为用户进行中改动,非本任务范围,已提醒)

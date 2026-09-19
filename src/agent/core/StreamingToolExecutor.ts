@@ -2,6 +2,7 @@ import { ToolRegistry } from '../../main/agent/tools/ToolRegistry'
 import { AgentEvent, ToolResultPayload } from '../../shared/types'
 import { ToolContext } from '../tools/ToolTypes'
 import { ToolCallSpec } from './ToolOrchestrator'
+import { isCommandToolName } from '../../main/agent/utils/toolSchemas'
 
 type ToolState = 'queued' | 'executing' | 'completed' | 'yielded'
 
@@ -253,7 +254,7 @@ export class StreamingToolExecutor {
       // Sibling cascading abort on critical command failure
       // (1:1 cc: record the failing tool's description so queued siblings get
       // a synthetic "Cancelled: parallel tool call X errored" instead of starting).
-      if (res.isError && tool.spec.name === 'run_command') {
+      if (res.isError && isCommandToolName(tool.spec.name)) {
         this.erroredToolDescription = this.describeTool(tool.spec)
         this.cancelQueuedForSiblingError()
         this.siblingAbort.abort()

@@ -8,8 +8,8 @@ const api: IElectronAPI = {
   abortAgent: () => {
     return ipcRenderer.invoke('agent:abort')
   },
-  abort: () => {
-    return ipcRenderer.invoke('agent:abort')
+  abort: (sessionId?: string) => {
+    return ipcRenderer.invoke('agent:abort', sessionId)
   },
   respondApproval: (
     requestId: string,
@@ -59,6 +59,12 @@ const api: IElectronAPI = {
   },
   appendMessage: (sessionId: string, message: any) => {
     return ipcRenderer.invoke('session:appendMessage', sessionId, message)
+  },
+  claimPersistOwner: (sessionId: string) => {
+    return ipcRenderer.invoke('session:claim-persist-owner', sessionId)
+  },
+  releasePersistOwner: (sessionId: string) => {
+    return ipcRenderer.invoke('session:release-persist-owner', sessionId)
   },
   forkSession: (sessionId: string, fromMessageId: string, newTitle?: string) => {
     return ipcRenderer.invoke('session:fork', sessionId, fromMessageId, newTitle)

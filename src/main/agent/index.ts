@@ -21,6 +21,7 @@ import {
 } from './tools/docxTools'
 import { createAgentTool } from './tools/agentTool'
 import { createToolSearchTool, ToolSearchManager } from './tools/ToolSearchTool'
+import { todoWriteTool, webFetchTool, webSearchTool } from './tools/coreTools'
 
 
 export * from './core/AgentEngine'
@@ -55,6 +56,11 @@ export function createDefaultAgentEngine(options: AgentEngineOptions): AgentEngi
   registry.registerTool(runCommandTool)
   registry.registerTool(globTool)
   registry.registerTool(grepTool)
+
+  // R5 core tool parity (1:1 cc): TodoWrite / WebFetch / WebSearch
+  registry.registerTool(todoWriteTool)
+  registry.registerTool(webFetchTool)
+  registry.registerTool(webSearchTool)
 
   // Register Word (.docx) tools
   registry.registerTool(docxReadTool)

@@ -175,9 +175,10 @@ describe('ChatPane — G6 事件总线投递(会话隔离)', () => {
     await act(async () => {
       sessionEventBus.ingestBatch([
         { sessionId: sidA, seq: 1, event: { type: 'start_turn', prompt: 'hi', turnId: 't1' } as unknown as AgentEvent },
-        { sessionId: sidA, seq: 2, event: { type: 'message_delta', delta: 'hello' } }
+        { sessionId: sidA, seq: 2, event: { type: 'message_delta', delta: 'hello' } },
+        { sessionId: sidA, seq: 3, event: { type: 'status_change', status: 'completed' } }
       ])
-      await new Promise((r) => setTimeout(r, 250))
+      await new Promise((r) => setTimeout(r, 100))
     })
     const paneA = screen.getByTestId(`chat-pane-${sidA}`)
     expect(paneA.textContent).toContain('hello')

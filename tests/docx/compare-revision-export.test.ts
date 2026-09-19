@@ -1,8 +1,10 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import { parseDocx, saveDocx } from '../../src/packages/docx-engine/index'
+import { generateParagraphXml, parseDocx, saveDocx } from '../../src/packages/docx-engine/index'
 import { buildDocx } from './helpers/build-docx'
 import { buildCompareFinalBlocks, diffWords, tokenizeText } from '../../src/renderer/src/components/word/editor/compare-docx'
+
+const CTX = { headingStyleIds: new Map(), allocateHyperlinkRel: () => 'rId9' }
 
 const A_BODY =
   '<w:p><w:r><w:t>第一章 项目背景</w:t></w:r></w:p>' +
@@ -66,6 +68,23 @@ describe('word-level compare export with tracked changes (MS Word P1)', () => {
     expect(xml).toMatch(/<w:ins [^>]*>(?:(?!<\/w:ins>).)*新增的完整段落/s)
     // the unchanged paragraph keeps its original bytes verbatim
     expect(xml).toContain('unchanged paragraph keeps original bytes')
+  })
+
+  it('merges the paragraph-mark del into an existing mark rPr (CT_PPr: one w:rPr only)', () => {
+    // an empty/whitespace paragraph whose mark carries an explicit size makes
+    // formatPPrChildren emit its own w:rPr; the del must merge into it
+    const xml = generateParagraphXml(
+      {
+        type: 'paragraph',
+        format: { emptyRunSizeHalfPoints: 21 },
+        runs: [{ text: '', del: { author: 'A', date: '2026-09-20T00:00:00Z' } }],
+        paraMarkDel: { author: 'A', date: '2026-09-20T00:00:00Z' },
+      },
+      CTX,
+    )
+    expect((xml.match(/<w:rPr>/g) ?? []).length).toBe(1)
+    expect(xml).toMatch(/<w:rPr><w:del w:id="\d+" w:author="A"[^>]*\/><w:sz /)
+    expect(xml).toContain('</w:rPr></w:pPr>')
   })
 
   it('keeps unmatched trailing originals so no content is silently dropped', async () => {

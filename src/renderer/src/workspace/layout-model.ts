@@ -516,7 +516,8 @@ export function moveTabToPaneInLayout(
   state: LayoutState,
   tabId: string,
   toPaneId: string,
-  afterTabId?: string
+  afterTabId?: string,
+  front?: boolean
 ): LayoutState | null {
   const hit = findTab(state.layout.root, tabId)
   if (!hit) return null
@@ -534,7 +535,9 @@ export function moveTabToPaneInLayout(
   }
   const tab = hit.pane.tabs.find((t) => t.tabId === tabId)!
   let insertAt = target.tabs.length
-  if (afterTabId !== undefined) {
+  if (front) {
+    insertAt = 0
+  } else if (afterTabId !== undefined) {
     const i = target.tabs.findIndex((t) => t.tabId === afterTabId)
     if (i < 0) return null
     insertAt = i + 1

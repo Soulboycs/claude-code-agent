@@ -75,7 +75,7 @@ export function matchesPermissionRule(
   }
 
   // 1. Command tools
-  if (toolName === 'run_command') {
+  if (toolName === 'run_command' || toolName === 'Bash' || toolName === 'bash') {
     const cmd = (args.CommandLine || args.command || '') as string
     return matchesWildcard(rule.specifier, cmd)
   }

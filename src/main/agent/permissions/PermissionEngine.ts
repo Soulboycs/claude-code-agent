@@ -10,8 +10,19 @@ import type {
 } from './types'
 
 export const READ_ONLY_TOOLS = new Set([
+  // R5 cc 命名（正名）+ 旧名（别名兼容期双覆盖）
+  'Read',
   'view_file',
   'read_file',
+  'cat',
+  'Glob',
+  'Grep',
+  'GlobTool',
+  'GrepTool',
+  'LS',
+  'list_directory',
+  'list_dir',
+  'TodoWrite',
   'grep_search',
   'grep',
   'find_by_name',
@@ -21,12 +32,17 @@ export const READ_ONLY_TOOLS = new Set([
   'read_url_content',
   'search_web',
   'docx_read',
-  'docx_read_revisions'
+  'docx_read_revisions',
+  'WebFetch',
+  'WebSearch'
 ])
 
 export const EDIT_TOOLS = new Set([
+  'Write',
+  'Edit',
   'write_to_file',
   'replace_file_content',
+  'edit',
   'docx_modify_block',
   'docx_apply_ops',
   'docx_append_content',

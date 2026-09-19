@@ -11,6 +11,11 @@ import { zodToJsonSchema } from 'zod-to-json-schema'
 import { isDocsEditorReady as probeDocsEditorReady } from './runtimeContext'
 import type { AgentTool } from '../tools/ToolRegistry'
 
+/** Command-class tool names (cc Bash semantics), incl. legacy aliases during migration. */
+export function isCommandToolName(name: string): boolean {
+  return name === 'Bash' || name === 'run_command' || name === 'PowerShell' || name === 'bash'
+}
+
 export interface ToolJSONSchema {
   type: 'object'
   properties: Record<string, unknown>
