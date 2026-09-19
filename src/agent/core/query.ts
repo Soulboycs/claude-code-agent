@@ -14,6 +14,7 @@ import { sanitizeConversationHistory } from '../../main/agent/utils/messageSanit
 import { resolveToolDescription } from '../../main/agent/utils/toolSchemas'
 import type { PermissionEngine } from '../../main/agent/permissions/PermissionEngine'
 import type { SandboxGuard } from '../../main/agent/sandbox/SandboxGuard'
+import type { DocConflictDetector } from '../../main/agent/utils/docConflictDetector'
 import { ToolSearchManager, buildSchemaNotSentHint } from '../../main/agent/tools/ToolSearchTool'
 import * as nodePath from 'path'
 import * as nodeOs from 'os'
@@ -22,6 +23,7 @@ export { sanitizeConversationHistory }
 
 export interface QueryParams {
   messages: LLMMessage[]
+  docConflict?: DocConflictDetector
   toolRegistry: ToolRegistry
   /** @deprecated Tool execution now runs through StreamingToolExecutor; kept for callers that still construct one. */
   orchestrator?: ToolOrchestrator
@@ -328,6 +330,30 @@ export async function* query(params: QueryParams): AsyncGenerator<AgentEvent, Qu
         }
       }
 
+      // 1.2 Document conflict gate(计划 §6.2 规则5):docx 系工具目标文档若正被
+      // 其他会话 in-flight 修改 → 拒绝执行并明确报错(agent 可告知用户/稍后重试)。
+      // 实现说明:相比计划中的"审批确认"采用直接拒绝——复用审批链路需要跨层
+      // 改造 promptMessage 组装;拒绝同样达成"不静默覆盖"的安全目标(偏差已记录)。
+      if (params.docConflict && spec.name.startsWith('docx_')) {
+        const conflictTarget = (observableArgs.filePath || observableArgs.path) as string | undefined
+        if (conflictTarget) {
+          const other = params.docConflict.findOther(params.sessionId || '', conflictTarget)
+          if (other) {
+            emitStart(false)
+            return {
+              allowed: false,
+              result: {
+                toolCallId: spec.id,
+                name: spec.name,
+                error: `DOC_CONFLICT: the document is currently being modified by another session (${other}). Wait for it to finish, then retry.`,
+                isError: true,
+              },
+            }
+          }
+          params.docConflict.registerCall(spec.id, params.sessionId || '', conflictTarget)
+        }
+      }
+
       // 1.5 Tool-level permission semantics (1:1 Claude Code Tool.checkPermissions):
       // deny short-circuits; ask forces HITL even when the engine would allow.
       let requiresApprovalFromTool = false
@@ -351,6 +377,40 @@ export async function* query(params: QueryParams): AsyncGenerator<AgentEvent, Qu
         }
         if (cp.behavior === 'ask') {
           requiresApprovalFromTool = true
+        }
+        // 1:1 cc toolExecution: a permission-layer allow may rewrite the input
+        // (permissionDecision.updatedInput). Applied after a sandbox re-check;
+        // NOT flagged userModified — that marker is reserved for human edits.
+        if (cp.behavior === 'allow' && cp.updatedInput) {
+          const edited = cp.updatedInput
+          if (params.sandboxGuard) {
+            let sandboxResult = { passed: true } as any
+            if (spec.name === 'run_command') {
+              sandboxResult = params.sandboxGuard.validateCommand(
+                (edited.CommandLine || edited.command || '') as string
+              )
+            } else {
+              const fileTarget = (
+                edited.filePath || edited.dirPath || edited.TargetFile || edited.AbsolutePath || edited.path
+              ) as string
+              if (fileTarget) {
+                sandboxResult = params.sandboxGuard.validateFileTarget(fileTarget)
+              }
+            }
+            if (!sandboxResult.passed) {
+              emitStart(false)
+              return {
+                allowed: false,
+                result: {
+                  toolCallId: spec.id,
+                  name: spec.name,
+                  error: `Permission-layer updatedInput blocked by sandbox guard: ${sandboxResult.reason} [${sandboxResult.violation}]`,
+                  isError: true,
+                },
+              }
+            }
+          }
+          return { allowed: true, args: edited }
         }
       }
 
@@ -562,6 +622,7 @@ export async function* query(params: QueryParams): AsyncGenerator<AgentEvent, Qu
           yield eventQueue.shift()!
         }
         for (const res of executor.getCompleted()) {
+          params.docConflict?.releaseCall(res.toolCallId)
           recordResult(res)
           yield { type: 'tool_call_complete', result: res }
         }
@@ -612,6 +673,7 @@ export async function* query(params: QueryParams): AsyncGenerator<AgentEvent, Qu
     if (signal?.aborted) {
       executor.discard()
       for (const res of executor.getCompleted()) {
+        params.docConflict?.releaseCall(res.toolCallId)
         recordResult(res)
         yield { type: 'tool_call_complete', result: res }
       }

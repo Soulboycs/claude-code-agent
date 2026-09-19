@@ -17,8 +17,6 @@ import {
 } from 'lucide-react'
 
 // Word Editor dependencies
-import { LocaleProvider } from './word/i18n/locale'
-import { App as WordEditorApp } from './word/App'
 import { installScreenTips } from '@genoffice/ui'
 
 // Styles for Word Editor
@@ -61,13 +59,6 @@ export interface RightAuxiliaryBarProps {
 const DEFAULT_WIDTH = 760
 const MIN_WIDTH = 420
 const STORAGE_KEY = 'nexus_auxiliary_bar_width'
-
-// Memoize Word Editor container to prevent redundant re-renders during UI interaction
-const WordEditorContainer = React.memo(() => (
-  <LocaleProvider initial="zh">
-    <WordEditorApp />
-  </LocaleProvider>
-))
 
 export const RightAuxiliaryBar: React.FC<RightAuxiliaryBarProps> = ({
   isOpen,
@@ -310,13 +301,18 @@ export const RightAuxiliaryBar: React.FC<RightAuxiliaryBarProps> = ({
           </div>
         </div>
 
-        {/* 🌟 Tab 1: Word 就在侧边栏显示 (1:1 Word 编辑器与排版系统，持久挂载零闪烁) */}
+        {/* 🌟 Tab 1: Word 编辑器已迁入工作区窗格(阶段三 §6.4:单实例宿主,避免双实例内存/串扰)。
+            此处保留引导文案;文档编辑请在工作区用"文档"卡片或拖拽打开。 */}
         <div
-          className={`flex-1 flex flex-col overflow-hidden relative bg-white ${
+          className={`flex-1 flex flex-col items-center justify-center gap-3 text-neutral-400 bg-white ${
             activeTab === 'word' ? '' : 'hidden'
           } ${isDragging ? 'pointer-events-none select-none' : ''}`}
         >
-          <WordEditorContainer />
+          <FileText className="w-10 h-10 text-neutral-300" />
+          <div className="text-sm">Word 编辑器已移入工作区窗格</div>
+          <div className="text-xs text-neutral-300 max-w-xs text-center">
+            在工作区分割窗格时选择「文档」卡片即可打开与编辑,agent 改动会自动跟随
+          </div>
         </div>
 
         {/* 🌟 Tab 2: Antigravity 侧边栏概览 (Subagents, Files Changed, Artifacts, Skills) */}

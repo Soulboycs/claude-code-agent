@@ -10,6 +10,18 @@ export interface SandboxGuardOptions {
 
 const IS_WINDOWS = process.platform === 'win32'
 
+const extraAllowedRoots = new Set<string>()
+
+/**
+ * 动态放行目录(R14):用户在工作区外打开的文档目录。
+ * docsBridge 注册文档实例时调用;全部引擎实例共享(集中管理)。
+ */
+export function allowDocRoot(dir: string): void {
+  try {
+    extraAllowedRoots.add(path.resolve(dir))
+  } catch {}
+}
+
 export class SandboxGuard {
   private workspaceRoot: string
   private allowedRoots: string[]
@@ -58,6 +70,14 @@ export class SandboxGuard {
 
     const normalizedResolved = IS_WINDOWS ? resolved.toLowerCase() : resolved
     const forwardSlashes = normalizedResolved.replace(/\\/g, '/')
+
+    // 0. 动态放行目录(R14):用户已打开的文档目录(集中管理,全部实例共享)
+    for (const root of extraAllowedRoots) {
+      const rootNorm = (IS_WINDOWS ? root.toLowerCase() : root).replace(/[\\]+/g, '/')
+      if (forwardSlashes.startsWith(rootNorm.endsWith('/') ? rootNorm : rootNorm + '/')) {
+        return { passed: true }
+      }
+    }
 
     // 1. Check for sensitive files (even inside workspace!)
     if (

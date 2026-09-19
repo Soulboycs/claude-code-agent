@@ -247,7 +247,7 @@ export interface IDocsAPI {
   pickImage: () => Promise<{ base64: string; mime: string; name: string } | null>
   onMcpCommand?: (callback: (message: any) => void) => () => void
   reportMcpResult?: (result: any) => void
-  signalMcpReady?: () => void
+  signalMcpReady?: (info?: { path?: string | null }) => void
   onWordFileChanged?: (callback: (detail: { filePath: string }) => void) => () => void
 }
 

@@ -101,14 +101,38 @@ describe('layout undo via the PM history mirror (true unified stack)', () => {
     editor.destroy()
   })
 
-  it('undo of a layout-only change never dirties text state (attr-only steps)', () => {
-    const editor = makeEditor(() => {})
+  it('with the App-style baseline seed, undoing the FIRST layout change restores the original state', () => {
+    // reviewer finding (round F): without a seeded baseline the first undo
+    // landed on attr null and React never replayed the original layout. The
+    // App now seeds the pre-edit snapshot as a non-history doc attribute.
+    const restored: unknown[] = []
+    const editor = makeEditor((s) => restored.push(s))
     editor.commands.insertContent('base text')
+    editor.view.dispatch(
+      editor.state.tr
+        .setMeta('layoutUndoMirror', true)
+        .setMeta('addToHistory', false)
+        .setDocAttribute('layoutUndo', snap(1440, 'baseline')),
+    )
+    restored.length = 0 // the seed replay itself is a no-op restore
+
     applyLayout(editor, snap(720, 'B'))
+    restored.length = 0 // ...and so is the apply replay; only the undo counts now
     editor.commands.undo()
-    // text content untouched; the doc attr reverted to the default
+
+    // text untouched; the attr replayed the BASELINE (not null) and the
+    // watcher fired so React state follows
     expect(editor.getText()).toBe('base text')
-    expect(editor.state.doc.attrs.layoutUndo).toBeNull()
+    expect((editor.state.doc.attrs.layoutUndo as { section: { tag: string } }).section.tag).toBe(
+      'baseline',
+    )
+    expect(restored).toHaveLength(1)
+    expect((restored[0] as { section: { tag: string } }).section.tag).toBe('baseline')
+    // redo returns to B symmetrically
+    editor.commands.redo()
+    expect((editor.state.doc.attrs.layoutUndo as { section: { tag: string } }).section.tag).toBe(
+      'B',
+    )
     editor.destroy()
   })
 })

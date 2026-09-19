@@ -289,7 +289,9 @@ describe('P1 负向 — 流式执行失败面', () => {
     for (const e of events) {
       if (e.type === 'tool_call_complete') byName[(e as any).result.name] = (e as any).result
     }
-    expect(String(byName['queued_write'].error)).toContain('aborted')
+    // R4 对齐 cc createSyntheticErrorMessage：queued 兄弟拿到带出错工具描述的合成错误
+    expect(String(byName['queued_write'].error)).toContain('Cancelled: parallel tool call run_command(')
+    expect(String(byName['queued_write'].error)).toContain('errored')
     expect(String(byName['sibling_probe'].output || byName['sibling_probe'].error)).toContain('cancelled by sibling abort')
   })
 

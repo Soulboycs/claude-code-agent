@@ -2,6 +2,11 @@ import React, { useRef, useEffect, useState } from 'react'
 import { Plus, ArrowDown, ArrowUp, Square, Shield, Zap, Check, ChevronUp, ClipboardList } from 'lucide-react'
 import { ModelSelector } from './ModelSelector'
 import { AgentStatus, ModelProvider, PermissionMode } from '@shared/types'
+import {
+  extractMentionQuery,
+  filterMentionCandidates,
+  type MentionCandidate
+} from '../utils/mentions'
 
 interface FloatingInputDockProps {
   promptInput: string
@@ -18,6 +23,8 @@ interface FloatingInputDockProps {
   providers?: ModelProvider[]
   permissionMode?: PermissionMode
   onPermissionModeChange?: (mode: PermissionMode) => void
+  /** @ 提及候选(§6.7):会话+文档;缺省无弹层 */
+  mentionCandidates?: MentionCandidate[]
 }
 
 export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
@@ -34,11 +41,21 @@ export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
   onOpenSettings,
   providers,
   permissionMode = 'ask',
-  onPermissionModeChange
+  onPermissionModeChange,
+  mentionCandidates
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const permRef = useRef<HTMLDivElement>(null)
   const [isPermMenuOpen, setIsPermMenuOpen] = useState(false)
+
+  const mention = mentionCandidates ? extractMentionQuery(promptInput) : null
+  const mentionList = mention && mentionCandidates ? filterMentionCandidates(mentionCandidates, mention.query).slice(0, 6) : []
+  const insertMention = (c: MentionCandidate) => {
+    if (!mention) return
+    const next = promptInput.slice(0, mention.start) + '@' + c.name + ' '
+    // 复用受控 onChange 管道(父级读取 e.target.value)
+    onChange({ target: { value: next } } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
+  }
 
   const isBypass = permissionMode === 'bypass'
   const isPlan = permissionMode === 'plan'
@@ -71,6 +88,23 @@ export const FloatingInputDock: React.FC<FloatingInputDockProps> = ({
   return (
     <div className="w-full max-w-3xl mx-auto px-6 pb-4 shrink-0 pointer-events-auto">
       <div className="relative rounded-2xl bg-white border border-neutral-200/90 shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-3 flex flex-col gap-1.5 transition-all focus-within:border-neutral-300">
+        {mention && mentionList.length > 0 && (
+          <div data-testid="mention-popup" className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-neutral-200 bg-white shadow-lg py-1 z-40">
+            {mentionList.map((c) => (
+              <button
+                key={c.type + c.id}
+                type="button"
+                data-testid={`mention-${c.type}`}
+                onClick={() => insertMention(c)}
+                className="w-full text-left px-3 py-1.5 hover:bg-neutral-100 text-xs flex items-center gap-2"
+              >
+                <span className="text-neutral-400">{c.type === 'session' ? '💬' : '📄'}</span>
+                <span className="truncate text-neutral-700">{c.name}</span>
+                <span className="ml-auto text-[10px] text-neutral-300">{c.type === 'session' ? '委派' : '上下文'}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {/* Multi-line Textarea Input */}
         <textarea
           ref={textareaRef}

@@ -93,12 +93,16 @@ function revisionParagraphXml(
   source: Block | undefined,
   author: string,
   date: string,
+  paraMarkDel = false,
 ): string {
   return generateParagraphXml(
     {
       type: 'paragraph',
       format: source?.format,
       runs: revisionRuns(segments, author, date),
+      // a fully removed paragraph also deletes its mark, so Word's
+      // "accept all" removes the empty shell like its own Compare does
+      ...(paraMarkDel ? { paraMarkDel: { author, date } } : {}),
     },
     COMPARE_CTX,
   )
@@ -147,6 +151,7 @@ export function buildCompareFinalBlocks(
           source,
           author,
           date,
+          true, // paragraph mark deleted: accept removes the empty paragraph
         ),
         ...(source?.docxIndex != null ? { docxIndex: source.docxIndex } : {}),
       })

@@ -66,11 +66,17 @@ export interface AgentTool<TArgs = any> {
   validateInput?: (args: TArgs, context: ToolContext) => Promise<ValidationResult>
 
   // Tool-level permission semantics (1:1 Claude Code Tool.checkPermissions):
-  // deny short-circuits with a structured error; ask forces HITL approval.
+  // deny short-circuits with a structured error; ask forces HITL approval;
+  // allow may carry updatedInput (the permission layer rewrites the input —
+  // e.g. path normalization — applied after a sandbox re-check).
   checkPermissions?: (
     args: TArgs,
     context: ToolContext
-  ) => Promise<{ behavior: 'allow' | 'deny' | 'ask'; message?: string }>
+  ) => Promise<{
+    behavior: 'allow' | 'deny' | 'ask'
+    message?: string
+    updatedInput?: Record<string, unknown>
+  }>
   
   // MCP protocol metadata
   isMcp?: boolean

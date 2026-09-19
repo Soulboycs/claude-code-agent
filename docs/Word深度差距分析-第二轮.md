@@ -13,11 +13,12 @@
 | #1 简单标记 | **已修复（先前批次）** | `ribbon-tabs.tsx:635` `RevisionDisplayMode` 含 `'simple'`；`tests/docx/simple-markup-mode.test.ts` |
 | #2 词级对比 | **已修复（B 轮 2026-09-20）** | `editor/compare-docx.ts` 词级 LCS + Run.ins/del 修订导出 + ComparePanel 导出按钮；`tests/docx/compare-revision-export.test.ts` 4/4 |
 | #3 版面撤销 | **已修复（A 轮）并升级（B 轮）** | B 轮升级为 PM doc-attr 镜像真统一栈（`layout-undo-extension.ts`），打字与版面按时间序交织撤销；`tests/docx/layout-undo.test.ts` 4/4 |
-| #4 字符缩放 | **已修复（先前批次）** | `convert.ts:3060` 回写 `run.charScalePct`；`tests/docx/char-scale-fidelity.test.ts` |
-| #5 下划线线型 | **已修复（先前批次）** | `types.ts:50` `underline?: boolean \| string` + `underlineColor`；`generate.ts:2728` 按值序列化；`tests/docx/rich-underline-fidelity.test.ts` |
+| #4 字符缩放 | **数据保真已修（先前批次）；UI 面板未闭环 → 第三轮 B1** | `convert.ts:3060` 回写；`tests/docx/char-scale-fidelity.test.ts`；字体对话框高级页（缩放/间距）无入口 |
+| #5 下划线线型 | **数据保真已修（先前批次）；UI 线型下拉未闭环 → 第三轮 B2** | `types.ts` underline 多值 + generate 按值序列化；`tests/docx/rich-underline-fidelity.test.ts`；Ribbon 仅单线开关 |
 | #6 题注只读 | **已修复（先前批次）** | `ribbon-references-tab.tsx` CaptionModal 插入普通文本 + `instrField` SEQ 域；`tests/docx/caption-editable.test.ts` |
 | #7 目录更新 | **已修复（先前批次，三能力俱全）** | 重建：`updateTocField`（Ribbon 按钮）；书签锚点匹配：`data-toc-anchor` + `hiddenBookmarks`（App.tsx TOC 回填）；Ctrl+点击跳转：`onDocClick` 锚点→标题双路径 |
 | #8 STYLEREF | **已修复（A 轮）并解除限制（B 轮）** | 引擎 `STYLEREF_MARK`(\uE002) + `styleRefs` 解析/写回；B 轮起任意样式名归一匹配（heading/标题别名）；`tests/docx/styleref-dynamic-header.test.ts` 6/6 |
+| #8b 题注 SEQ 章节号 | **未闭环（F 轮拆分入册 → 第三轮 B11）** | generate 仍仅输出 SEQ label ARABIC，无章节号联动；题注位置（上/下）同样缺失 |
 | #9 图片裁剪 | **已修复（先前批次）** | `PictureDialogs.tsx` 非破坏性相对坐标 `{l,t,r,b}`；`patch.ts` 仅换图（retarget）场景清 `srcRect`；`tests/docx/image-crop-non-destructive.test.ts` |
 | #10 tblLook | **已修复（先前批次）** | `types.ts:1241` `TableLook` + `table-properties.ts:154` 开关切换 |
 | #11 查找替换 | **已修复（先前批次）** | `^p`/`^t` 等特殊标记 + `useWildcards` 通配符（`parseWordSearchPattern`）；`tests/docx/find-replace-special-tokens.test.ts` |
@@ -31,7 +32,10 @@
 | #15 审阅者过滤 | **已修复（D 轮 2026-09-20）** | 接受/拒绝下拉作者多选清单 + 集合过滤 `revisionsOfAuthors` + 显示过滤 CSS（仅 all 模式）；`tests/docx/reviewer-filter.test.ts` 3/3 |
 | #18 九宫格 | **已修复（D 轮 2026-09-20）** | `cell-nine-align.ts` vAlign+段落 align 单事务原子设置 + 3×3 弹出；`tests/docx/cell-nine-align.test.ts` 3/3 |
 | #23 标尺 | **已修复（D 轮 2026-09-20）** | inch/cm 单位切换（记忆）+ 刻度/制表位提示按单位 + 新增垂直标尺（边距拖拽走统一撤销栈）；`tests/docx/ruler-units.test.ts` 5/5 |
-| #17 首字下沉分页 / #21 浮动表格 / #24 样式窗格 / #25 导航窗格 / #26 小彩虹 / #27 形状组合 / #28 格式查找替换 / #29 文字效果 / #30 SmartArt | **仍开放** | 与下文描述一致 |
+| #17 首字下沉 | **复核证伪 + 导出缺口已修（E 轮 2026-09-20）** | 分页截断断言不成立（`::first-letter` 浮动参与布局、画布为 DOM 实测）；真实缺口为 HTML 导出丢伪元素样式，已附 `DROP_CAP_EXPORT_CSS` + 保留 `data-drop-cap`；`tests/docx/e-batch-contracts.test.ts` |
+| #26 小彩虹 | **已修复（E 轮）；选项集边界（F 轮入册）** | ImageWrapPopover 复用同一 WRAP_OPTIONS 与写入路径；边界：缺紧密型/穿越型（渲染无文字轮廓避让），四周型拆左右两变体 |
+| #28 格式查找替换 | **已修复（E 轮 2026-09-20）** | `format-find.ts` 格式真值表/范围收集/批量重样式 + FindPanel 格式弹层（查找/替换为两行）；`tests/docx/format-find.test.ts` 5/5 |
+| #21 浮动表格 / #24 样式窗格 / #25 导航窗格 / #27 形状组合 / #29 文字效果（倒影/3D）/ #30 SmartArt | **仍开放** | 另有第三轮入册的 A 组 19 项 + B 组 24 项残缺，见 docs/Word深度差距分析-第三轮.md |
 
 ---
 

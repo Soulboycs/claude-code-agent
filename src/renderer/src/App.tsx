@@ -24,6 +24,9 @@ import { PaneHostContext } from './workspace/pane-host-context'
 import { sessionEventBus } from './utils/sessionEventBus'
 import { collectAllPanes } from './workspace/layout-model'
 import { installFrameProbe, uninstallFrameProbe } from './utils/perfProbe'
+import { WorkspaceDnd, SidebarDropZone } from './workspace/WorkspaceDnd'
+import { useLinkageStore } from './workspace/linkage-store'
+import { normalizeKeyPath } from '@shared/paths'
 
 // 多 pane 工作台(计划 §8.1/§10 阶段一):
 // - chat 状态全部下沉到 ChatPane(每 pane 独立 useReducer + sessionEventBus 按 sessionId 投递)
@@ -186,7 +189,21 @@ export default function App() {
 
   useEffect(() => {
     if (!hydrated) return
-    // 检测 workspace → 恢复/创建会话 → bootstrap 布局 tab
+    // 旧会话↔文档映射 → lastTouch(§6.5 迁移)
+    useLinkageStore.getState().bootstrapFromLegacy()
+    // docs:file-changed(FileChangeHub)→ 联动:角标 + 跟随
+    const offChanged = window.docsApi?.onWordFileChanged?.(({ filePath }: { filePath: string }) => {
+      const link = useLinkageStore.getState()
+      link.markUpdated(filePath)
+    })
+    return () => {
+      offChanged?.()
+    }
+  }, [hydrated])
+
+  // 启动:workspace 检测 + 布局会话恢复/迁移(原启动 effect 主体)
+  useEffect(() => {
+    if (!hydrated) return
     let cancelled = false
     void (async () => {
       let folder: string | null = null
@@ -287,7 +304,8 @@ export default function App() {
     }
   }, [])
 
-  // Word 编辑器"问 AI":路由到聚焦会话 pane(经 openTab 聚焦 + sendMessage)
+  // Word 编辑器"问 AI":反向路由(§6.4)——lastTouch[path] 优先,聚焦该会话 pane 并发送;
+  // 无记忆 → 聚焦会话兜底;发送后写 lastTouch(发送后记忆)
   useEffect(() => {
     const handleWordAskAi = (e: Event) => {
       const detail = (e as CustomEvent).detail
@@ -296,10 +314,16 @@ export default function App() {
       const promptText = filePath
         ? `请对 Word 文档（${filePath}）执行以下修改：${instruction}`
         : `请执行：${instruction}`
-      const sid = focusedSessionIdRef.current
-      if (sid) {
-        void window.electronAPI?.sendMessage?.(promptText, workspaceRef.current || undefined, sid)
+      const link = useLinkageStore.getState()
+      const remembered = filePath ? link.lastTouch[normalizeKeyPath(filePath)] : undefined
+      const target = remembered || focusedSessionIdRef.current
+      if (!target) return
+      if (remembered) {
+        // 聚焦被记忆的会话 pane(去重:已开则只聚焦)
+        useLayoutStore.getState().openTab({ kind: 'chat', sessionId: target })
       }
+      void window.electronAPI?.sendMessage?.(promptText, workspaceRef.current || undefined, target)
+      if (filePath) link.setLastTouch(filePath, target)
     }
     window.addEventListener('nexus-word-ask-ai', handleWordAskAi)
     return () => window.removeEventListener('nexus-word-ask-ai', handleWordAskAi)
@@ -434,19 +458,22 @@ export default function App() {
         isAuxiliaryBarOpen={isWordDrawerOpen}
       />
 
-      {/* Main Workspace Body */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {isSidebarOpen && (
-          <Sidebar
-            currentConversationId={focusedSessionId ?? ''}
-            workspace={workspace}
-            refreshTrigger={sidebarRefreshTrigger}
-            onSelectConversation={handleSelectConversation}
-            onNewConversation={() => void handleNewConversation()}
-            onDeleteConversation={(id) => void handleDeleteConversation(id)}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-          />
-        )}
+        {/* Main Workspace Body(统一拖拽域:Sidebar 与 SplitRenderer 同域互拖) */}
+        <WorkspaceDnd>
+        <div className="flex flex-1 overflow-hidden relative">
+          <SidebarDropZone>
+            {isSidebarOpen && (
+              <Sidebar
+                currentConversationId={focusedSessionId ?? ''}
+                workspace={workspace}
+                refreshTrigger={sidebarRefreshTrigger}
+                onSelectConversation={handleSelectConversation}
+                onNewConversation={() => void handleNewConversation()}
+                onDeleteConversation={(id) => void handleDeleteConversation(id)}
+                onOpenSettings={() => setIsSettingsOpen(true)}
+              />
+            )}
+          </SidebarDropZone>
 
         {/* Center: 多 pane 工作台(SplitRenderer,PaneHost context 包裹) */}
         <main className="flex-1 flex flex-col h-full overflow-hidden bg-white relative">
@@ -474,7 +501,8 @@ export default function App() {
           }}
           onOpenTerminal={() => setIsTerminalOpen(true)}
         />
-      </div>
+        </div>
+        </WorkspaceDnd>
 
       <SettingsModal
         isOpen={isSettingsOpen}

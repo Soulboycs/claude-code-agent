@@ -2,25 +2,38 @@ import { logger } from '../../utils/logger'
 
 /**
  * Shared streaming-fetch retry policy for all providers
- * (1:1 with Claude Code services/api/withRetry.ts, adapted to our sync fetch).
+ * (1:1 with Claude Code services/api/withRetry.ts request-level policy).
  *
- * - Retries transient failures: HTTP 429 / 5xx and network-level fetch errors.
- * - Never retries aborts (AbortError) or non-transient 4xx.
- * - Default 3 retries (cc-haha defaults to 10; ours stays conservative until
- *   a need for longer storms is proven). Override via
- *   CLAUDE_STREAM_TRANSIENT_RETRY_MAX (env parity with cc-haha).
- * - Delay: fixed 2s by default; NEXUS_PROVIDER_RETRY_DELAY_MS overrides
- *   (used by tests to keep retry storms fast).
+ * - Defaults: DEFAULT_MAX_RETRIES = 10, BASE_DELAY_MS = 500 with exponential
+ *   backoff (500 * 2^(attempt-1), capped at 30s) — same constants as cc.
+ * - Retries transient failures: 429 / 408 (timeout) / 409 (lock) / 5xx and
+ *   network-level fetch errors; obeys the `x-should-retry` header when the
+ *   server explicitly forbids it.
+ * - Never retries aborts (AbortError) or other non-transient 4xx.
+ * - Env: CLAUDE_CODE_MAX_RETRIES overrides the attempt count (same env name
+ *   and meaning as cc's request-level override). NEXUS_PROVIDER_RETRY_DELAY_MS
+ *   replaces the base delay (test harness only).
  */
 
+export const BASE_DELAY_MS = 500
+export const DEFAULT_MAX_RETRIES = 10
+const MAX_DELAY_MS = 30_000
+
 export function getProviderMaxRetries(): number {
-  const parsed = parseInt(process.env.CLAUDE_STREAM_TRANSIENT_RETRY_MAX || '', 10)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 3
+  const raw = parseInt(process.env.CLAUDE_CODE_MAX_RETRIES || '', 10)
+  if (Number.isFinite(raw) && raw >= 0) return raw
+  const legacy = parseInt(process.env.CLAUDE_STREAM_TRANSIENT_RETRY_MAX || '', 10)
+  if (Number.isFinite(legacy) && legacy >= 0) return legacy
+  return DEFAULT_MAX_RETRIES
 }
 
-function retryDelayMs(): number {
+function baseDelayMs(): number {
   const parsed = parseInt(process.env.NEXUS_PROVIDER_RETRY_DELAY_MS || '', 10)
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 2000
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : BASE_DELAY_MS
+}
+
+function backoffDelayMs(attempt: number): number {
+  return Math.min(baseDelayMs() * Math.pow(2, attempt - 1), MAX_DELAY_MS)
 }
 
 export interface FetchWithRetryOptions {
@@ -31,6 +44,14 @@ export interface FetchWithRetryOptions {
   model?: string
   onStatusUpdate?: (message: string) => void
   signal?: AbortSignal
+}
+
+function isTransientStatus(status: number, headers: Headers | undefined): boolean {
+  // Server explicitly forbids retry — obey (cc withRetry x-should-retry rule).
+  const shouldRetryHeader = headers?.get('x-should-retry')
+  if (shouldRetryHeader === 'false') return false
+  if (shouldRetryHeader === 'true') return true
+  return status === 429 || status === 408 || status === 409 || status >= 500
 }
 
 export async function fetchWithStreamingRetry(options: FetchWithRetryOptions): Promise<Response> {
@@ -57,17 +78,16 @@ export async function fetchWithStreamingRetry(options: FetchWithRetryOptions): P
         `Network error on ${options.url}: ${err?.message} — retrying (attempt ${retries}/${maxRetries})`
       )
       options.onStatusUpdate?.(
-        `Network error: ${err?.message}. Retrying in ${retryDelayMs() / 1000}s (attempt ${retries}/${maxRetries})...`
+        `Network error: ${err?.message}. Retrying in ${backoffDelayMs(retries) / 1000}s (attempt ${retries}/${maxRetries})...`
       )
-      await new Promise((r) => setTimeout(r, retryDelayMs()))
+      await new Promise((r) => setTimeout(r, backoffDelayMs(retries)))
       continue
     }
 
     if (response.ok) return response
 
     const errorText = await response.text().catch(() => '')
-    const transient = response.status === 429 || response.status >= 500
-    if (!transient || retries >= maxRetries) {
+    if (!isTransientStatus(response.status, response.headers) || retries >= maxRetries) {
       logger.error(
         options.provider,
         `LLM API Error (${response.status}) on ${options.url}: ${errorText}`,
@@ -82,8 +102,8 @@ export async function fetchWithStreamingRetry(options: FetchWithRetryOptions): P
       `Transient ${response.status} on ${options.url} — retrying (attempt ${retries}/${maxRetries})`
     )
     options.onStatusUpdate?.(
-      `Rate limited or server error (${response.status}). Retrying in ${retryDelayMs() / 1000}s (attempt ${retries}/${maxRetries})...`
+      `Rate limited or server error (${response.status}). Retrying in ${backoffDelayMs(retries) / 1000}s (attempt ${retries}/${maxRetries})...`
     )
-    await new Promise((r) => setTimeout(r, retryDelayMs()))
+    await new Promise((r) => setTimeout(r, backoffDelayMs(retries)))
   }
 }

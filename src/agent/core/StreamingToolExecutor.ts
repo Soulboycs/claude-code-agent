@@ -47,6 +47,8 @@ export class StreamingToolExecutor {
   private tools: TrackedTool[] = []
   private siblingAbort = new AbortController()
   private isDiscarded = false
+  /** Description of the tool whose error triggered sibling cancellation (cc erroredToolDescription). */
+  private erroredToolDescription = ''
 
   constructor(
     private registry: ToolRegistry,
@@ -138,6 +140,40 @@ export class StreamingToolExecutor {
     }
   }
 
+  /**
+   * 1:1 cc createSyntheticErrorMessage('sibling_error'): queued siblings are
+   * completed with a synthetic error instead of being started. In-flight tools
+   * receive the siblingAbort signal and are expected to honour it.
+   */
+  private cancelQueuedForSiblingError(): void {
+    if (this.isDiscarded) return
+    const msg = this.erroredToolDescription
+      ? `Cancelled: parallel tool call ${this.erroredToolDescription} errored`
+      : 'Cancelled: parallel tool call errored'
+    for (const tool of this.tools) {
+      if (tool.status !== 'queued') continue
+      tool.status = 'completed'
+      tool.result = {
+        toolCallId: tool.spec.id,
+        name: tool.spec.name,
+        error: msg,
+        isError: true,
+      }
+    }
+  }
+
+  private describeTool(spec: ToolCallSpec): string {
+    const args = this.parseArgs(spec) as Record<string, unknown>
+    const summary = args?.command ?? args?.filePath ?? args?.dirPath ?? args?.pattern ?? ''
+    const truncated =
+      typeof summary === 'string' && summary.length > 0
+        ? summary.length > 40
+          ? summary.slice(0, 40) + '…'
+          : summary
+        : ''
+    return truncated ? `${spec.name}(${truncated})` : spec.name
+  }
+
   private parseArgs(spec: ToolCallSpec): Record<string, unknown> {
     if (typeof spec.arguments === 'string') {
       try {
@@ -215,7 +251,11 @@ export class StreamingToolExecutor {
       res.toolCallId = tool.spec.id
 
       // Sibling cascading abort on critical command failure
+      // (1:1 cc: record the failing tool's description so queued siblings get
+      // a synthetic "Cancelled: parallel tool call X errored" instead of starting).
       if (res.isError && tool.spec.name === 'run_command') {
+        this.erroredToolDescription = this.describeTool(tool.spec)
+        this.cancelQueuedForSiblingError()
         this.siblingAbort.abort()
       }
       return res

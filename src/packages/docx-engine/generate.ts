@@ -1757,6 +1757,14 @@ export function generateParagraphXml(block: GeneratedBlock, ctx: GenerateContext
     })
   }
   children.push(...formatPPrChildren(block.format))
+  if (block.paraMarkDel) {
+    const d = block.paraMarkDel
+    children.push({
+      name: 'w:rPr',
+      xml:
+        `<w:rPr><w:del${revAttrsFor(d)}/></w:rPr>`,
+    })
+  }
   if (block.pPrChange) {
     const revision = revisionPPrChangeXml(block.pPrChange)
     if (revision) children.push({ name: 'w:pPrChange', xml: revision })
@@ -1764,6 +1772,18 @@ export function generateParagraphXml(block: GeneratedBlock, ctx: GenerateContext
   children.sort((a, b) => PPR_CHILD_ORDER.indexOf(a.name) - PPR_CHILD_ORDER.indexOf(b.name))
   const pPr = children.length > 0 ? `<w:pPr>${children.map((c) => c.xml).join('')}</w:pPr>` : ''
   return `<w:p>${pPr}${content}</w:p>`
+}
+
+/** attribute string for a tracked-change revision outside run serialization
+ *  (paragraph-mark deletions); deterministic sequence like the run-path revSeq */
+let paraMarkDelSeq = 9500
+function revAttrsFor(info: { author: string; date?: string; id?: string }): string {
+  const id = info.id ?? String(paraMarkDelSeq++)
+  return (
+    ` w:id="${escapeXmlAttr(id)}"` +
+    ` w:author="${escapeXmlAttr(info.author)}"` +
+    (info.date ? ` w:date="${escapeXmlAttr(info.date)}"` : '')
+  )
 }
 
 /** stable 31-bit id per bookmark name (start/end pair only needs to agree with itself) */

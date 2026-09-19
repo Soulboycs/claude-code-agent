@@ -12,7 +12,7 @@ import {
   docPasswordFor
 } from './docx-encryption'
 import { buildBlankDocx, saveDocx, type ParsedDocFull, type SaveBlock, type SaveOptions } from '../../packages/docx-engine'
-import { installDocsBridge } from './docsBridge'
+import { installDocsBridge, notifyDocsSavedByEditor } from './docsBridge'
 import { recordRecentFile, getRecentFiles } from './docx-recent'
 
 export interface OpenFileResult {
@@ -113,6 +113,7 @@ export function registerDocxIpc(getMainWindow: () => BrowserWindow | null) {
           outBuffer = encryptDocx(outBuffer, pwd)
         }
         await atomicWriteFile(filePath, outBuffer)
+        notifyDocsSavedByEditor(filePath)
         return { ok: true }
       } catch (err: any) {
         return { ok: false, error: err?.message || String(err) }

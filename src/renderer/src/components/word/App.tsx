@@ -279,6 +279,7 @@ import { collectRevisions, gotoRevision, type TrackChangesStorage } from './edit
 import { NavPane } from './components/NavPane'
 import { Ruler } from './components/Ruler'
 import { VRuler } from './components/VRuler'
+import { ImageWrapPopover } from './components/ImageWrapPopover'
 import { docBodyFont, docLineFactor, docThemeCss } from './doc-style-css'
 import { isDocDirty } from './doc-dirty'
 import {
@@ -2620,6 +2621,20 @@ export function App() {
   const compareWithFile = useCallback(() => compareWithFileImpl(reviewCtxRef.current), [])
 
   const revisionCount = editor && doc ? revisionCountOfDoc(editor.state.doc) : 0
+
+  // seed the pre-edit layout baseline into the undo mirror whenever a document
+  // becomes active: without it, undoing the FIRST layout change lands the attr
+  // on null and the watcher never replays the original state (review round F)
+  useEffect(() => {
+    if (!editor || !doc) return
+    if (editor.state.doc.attrs.layoutUndo != null) return
+    editor.view.dispatch(
+      editor.state.tr
+        .setMeta('layoutUndoMirror', true)
+        .setMeta('addToHistory', false)
+        .setDocAttribute('layoutUndo', layoutStateRef.current),
+    )
+  }, [editor, doc])
   // ---- reviewer filter (Word: 显示标记 → 特定人员) ----
   // null = all authors; a set = only the checked authors are shown / accepted / rejected
   const [revAuthorFilter, setRevAuthorFilter] = useState<Set<string> | null>(null)
@@ -6655,6 +6670,7 @@ export function App() {
         />
       )}
 
+      {doc && editor && !readMode && !isProtected && <ImageWrapPopover editor={editor} />}
       {doc && ctxMenu && (
         <EditorContextMenu
           editor={editor}

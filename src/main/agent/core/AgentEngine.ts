@@ -46,6 +46,8 @@ export interface AgentEngineOptions {
   permissionMode?: PermissionMode
   permissionRules?: ConfiguredRule[]
   customMemoryDir?: string
+  /** 跨会话文档写冲突检测(阶段三 §6.2 规则5);由 SessionManager 注入共享实例 */
+  docConflict?: import('../utils/docConflictDetector').DocConflictDetector
 }
 
 export class AgentEngine extends EventEmitter {
@@ -86,6 +88,7 @@ export class AgentEngine extends EventEmitter {
   private fileHistoryTracker: FileHistoryTracker
 
   private conversationHistory: LLMMessage[] = []
+  private docConflict?: import('../utils/docConflictDetector').DocConflictDetector
 
   constructor(options: AgentEngineOptions) {
     super()
@@ -133,6 +136,7 @@ export class AgentEngine extends EventEmitter {
       workspaceRoot: this.workspaceRoot
     })
     this.fileHistoryTracker = new FileHistoryTracker(this.workspaceRoot)
+    this.docConflict = options.docConflict
     this.slashDispatcher = new SlashCommandDispatcher(this)
 
     this.initSystemPrompt()
@@ -459,6 +463,7 @@ CRITICAL RULE FOR WORD: NEVER use "run_command" or Python scripts (such as pytho
       permissionMode: this.permissionMode,
       permissionEngine: this.permissionEngine,
       sandboxGuard: this.sandboxGuard,
+      docConflict: this.docConflict,
       maxTurns: this.maxSteps,
       signal,
       onApprovalRequired: (req) => this.handleApprovalRequired(req),

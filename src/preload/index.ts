@@ -253,7 +253,7 @@ const docsApi = {
     }
   },
   reportMcpResult: (result: any) => ipcRenderer.send('docs:mcp-result', result),
-  signalMcpReady: () => ipcRenderer.send('docs:mcp-ready'),
+  signalMcpReady: (info?: { path?: string | null }) => ipcRenderer.send('docs:mcp-ready', info),
   onWordFileChanged: (callback: (detail: { filePath: string }) => void) => {
     const handler = (_: any, detail: any) => callback(detail)
     ipcRenderer.on('docs:file-changed', handler)

@@ -9,8 +9,10 @@ import { createScrollFollower, type ScrollFollower } from '../../utils/scrollFol
 import { useSessionChat } from '../../hooks/useSessionChat'
 import { sessionEventBus } from '../../utils/sessionEventBus'
 import { useLayoutStore } from '../layout-store'
+import { useLinkageStore } from '../linkage-store'
 import { usePaneHost } from '../pane-host-context'
-import { getSessionWordDoc } from '../../components/word/persistence'
+import { getSessionWordDoc, getRecentWordFiles } from '../../components/word/persistence'
+import { resolveMentions, type MentionCandidate } from '../../utils/mentions'
 import type { TabContentProps } from '../tab-registry'
 import type { TabTarget } from '../layout-model'
 
@@ -33,6 +35,7 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
   const [promptInput, setPromptInput] = useState('')
   const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null)
   const [title, setTitle] = useState<string>('New Conversation')
+  const [mentionCandidates, setMentionCandidates] = useState<MentionCandidate[]>([])
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const scrollFollowerRef = useRef<ScrollFollower | null>(null)
@@ -65,6 +68,20 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
+
+  // —— @ 提及候选(§6.7):会话 + 最近文档 ——
+  useEffect(() => {
+    void (async () => {
+      try {
+        const sessions = (await window.electronAPI?.listSessions?.(host.workspace || undefined)) || []
+        const docs = getRecentWordFiles()
+        setMentionCandidates([
+          ...sessions.slice(0, 10).map((s) => ({ type: 'session' as const, id: s.id, name: s.title })),
+          ...docs.map((p) => ({ type: 'doc' as const, id: p, name: p.split(/[\/]/).pop() || p }))
+        ])
+      } catch {}
+    })()
+  }, [host.workspace])
 
   // —— 滚动跟随 ——
   useEffect(() => {
@@ -102,10 +119,15 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
         }
       } else if (event.type === 'tool_call_start') {
         if (event.toolCall.name.startsWith('docx_')) {
-          host.onRequestWordDrawer()
-          window.dispatchEvent(new CustomEvent('nexus-word-focus'))
+          // 零配置联动路由(§6.4):lastTouch 记忆 + word tab 自动打开(去重;抑制名单跳过)
+          const link = useLinkageStore.getState()
           const fp = (event.toolCall.arguments as { filePath?: string })?.filePath
-          if (fp) openWordDocIfNotActive(fp)
+          if (fp) {
+            link.setLastTouch(fp, sessionId)
+            if (!link.isSuppressed(fp)) {
+              useLayoutStore.getState().openTab({ kind: 'word', path: fp })
+            }
+          }
         }
       } else if (event.type === 'tool_call_complete') {
         if (
@@ -172,12 +194,29 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
       }
 
       try {
+        // P4 委派(§6.6 L3):@会话 → 任务发给目标会话(带来源标注),聚焦其 pane
+        const resolved = resolveMentions(prompt, mentionCandidates)
+        if (resolved.delegatedSessionIds.length > 0) {
+          const docLines = resolved.docPaths.length
+            ? '\n\n【涉及文档】:\n' + resolved.docPaths.map((p) => '- ' + p).join('\n')
+            : ''
+          for (const sid of resolved.delegatedSessionIds) {
+            await window.electronAPI?.sendMessage?.(
+              `【来自会话 ${sessionId} 的委派】\n${outgoingPrompt}${docLines}`,
+              host.workspace || undefined,
+              sid
+            )
+          }
+          setPromptInput('')
+          useLayoutStore.getState().openTab({ kind: 'chat', sessionId: resolved.delegatedSessionIds[0] })
+          return
+        }
         await window.electronAPI?.sendMessage?.(outgoingPrompt, host.workspace || undefined, sessionId)
       } catch (err) {
         dispatch({ type: 'error', message: (err as Error)?.message || 'Failed to send message' })
       }
     },
-    [sessionId, dispatch, host.workspace, title]
+    [sessionId, dispatch, host.workspace, title, mentionCandidates]
   )
 
   const handleForkMessage = useCallback(
@@ -268,18 +307,9 @@ export function ChatPane({ target, active }: TabContentProps<Extract<TabTarget, 
         providers={host.providers}
         permissionMode={host.permissionMode}
         onPermissionModeChange={host.onPermissionModeChange}
+        mentionCandidates={mentionCandidates}
       />
     </div>
   )
 }
 
-function openWordDocIfNotActive(path: string): void {
-  const aidocs = (window as unknown as Record<string, unknown>).__aidocs as
-    | { getFilePath?: () => string | undefined; filePath?: string }
-    | undefined
-  const currentFp = aidocs?.getFilePath ? aidocs.getFilePath() : aidocs?.filePath
-  const norm = (p: string) => p.replace(/\\/g, '/').toLowerCase()
-  if (!(currentFp && (currentFp === path || norm(currentFp) === norm(path)))) {
-    window.dispatchEvent(new CustomEvent('nexus-word-open-file', { detail: { path } }))
-  }
-}

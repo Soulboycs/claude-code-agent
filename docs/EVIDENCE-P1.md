@@ -110,3 +110,25 @@
 
 - 逐条对照代码验证 v2 计划的关键声明,全部属实(部分行号 ±10 漂移,机制无误):硬件加速禁用(`main/index.ts:10`)、单 engine(:28)、busy throw、AgentEvent 无 sessionId(`types.ts:58`)、chatReducer 增量追加、buildDocumentContext 8000 字符预算、docxTools live 分支跨路径 save(:201/348/578/622/719)、docsBridge 首包优先、SandboxGuard 锁 workspace、bypass 自动批准、zod 已在依赖(:49)。
 - **R10 关键发现**:`git log -S disableHardwareAcceleration` → commit `56f7fb6 "fix: Disable hardware acceleration to resolve window crash & add crash logger"`——禁用是为修窗口崩溃。D9 裁定:保持禁用,GPU 恢复为独立 spike(已写入计划 v2)。
+
+## E9 — 阶段二 Snap 拖拽(2026-09-20)
+
+- 落点几何纯函数 `drag-geometry.ts`(edge 0.15/center 0.40/最近边回落 + chip 插入索引):`tests/dragGeometry.test.ts` **7/7**(过程:2 处测试用例与契约不符已修,实现未改)
+- WorkspaceDnd:全应用唯一 DndContext(PointerSensor distance 8,activationConstraint)、三类 droppable 优先级 collision(tab-chip > pane-drop > sidebar-section,无兜底)、DragOverlay、预览经 context 下发;TabBar chip useDraggable+useDroppable+拖后 click 吞掉(R15);pane PaneDropZone+DropPreviewOverlay(两层:半透明填充+描边);Sidebar 会话行 useDraggable(重命名态免监听)+ SidebarDropZone 收回
+- TabBar 右键菜单(关闭/关闭其他/关闭右侧);快捷键 Ctrl+\ / Ctrl+Shift+\ / Ctrl+W
+
+## E10 — 阶段三 零配置联动(2026-09-20)
+
+- P3-a `shared/paths.ts` 契约(normalizeKeyPath/canonicalizePath;WSL 例外=保留大小写):4/4;过程:file:// 剥除残留盘符斜杠、WSL 语义修正(Linux 大小写敏感,整体保留)
+- P3-b R11:docsBridge 路径注册表(path→wcId,mcp-ready 携带 path)+ `runDocsCommandForPath`(无实例即抛→离线分支);docxTools **12 个 live 调用点**全部按路径寻址;**mcp-bridge 实例端 targetPath 过滤**(消灭广播双写);实例内切文档 1.5s 重报自愈;FileChangeHub(50ms 合并)+ docs:save 接线
+- P3-c:linkage-store(pathToTab/lastTouch/角标/暂停跟随/抑制/panePreference/旧映射迁移)5/5;WordPane 单实例宿主(DOM reparent,防双实例);RightAuxiliaryBar 撤编辑器挂载;ChatPane docx_ 事件→lastTouch+word tab 自动打开(抑制名单跳过);TabBar word 角标;App:file-changed→角标、问AI lastTouch 反路由(§6.4)、bootstrapFromLegacy
+- P3-e:DocConflictDetector(in-flight 注册表,精确重叠)3/3 + query.ts runGate 门(偏差:采用明确拒绝而非审批确认,记录于代码注释与本文档);SandboxGuard 动态 allowedRoots(docsBridge 注册文档目录时放行,R14)
+- 过程:zustand getState 快照陈旧(测试侧修)、wordHost require→静态导入、word/App 具名导出、FloatingInputDock JSX 插入语法错误(手工修复)
+
+## E11 — 阶段四 agent↔agent 委派(2026-09-20)
+
+- `mentions.ts` 纯函数(extractMentionQuery/filterMentionCandidates/resolveMentions):5/5
+- FloatingInputDock @ 弹层(💬会话/📄文档,点击插入);ChatPane 提交解析:@会话 → 结构化委派消息(带来源 sessionId 标注)发给目标会话并聚焦其 pane;@文档 → 上下文路径
+- 门禁:bun **704 pass / 0 fail** · vitest **59/59** · 双 typecheck 干净 · `npm run build` ✓ 6.39s
+- 范围外修复:tests/providerNegative.test.ts 增加重试环境快路+恢复(用户 WIP providerHttp 重试风暴超 bun 5s 超时;env 进程级泄漏已用保存/恢复修复 R2/R4 交叉失败)
+- 偏差与限制(诚实):委派为全文转发非摘要压缩;@ 提及无键盘导航(点击选择);doc-conflict 为拒绝非审批;上下文预算未接 token 计数(骨架器自带 8000 字符上限);终端/浏览器/概览 pane 未注册;实机 GUI 8 会话压测待手测

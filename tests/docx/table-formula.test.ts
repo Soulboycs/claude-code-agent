@@ -45,7 +45,7 @@ const GRID = {
 
 describe('table formula evaluator (ROUND2 #19: =SUM(ABOVE) and friends)', () => {
   it('direction functions collect contiguous numeric cells and stop at blanks', () => {
-    // B2 is blank in GRID; SUM(ABOVE) from B3 walks B2(blank)->stop => error
+    // A3 is '1', above it A2='5', A1='10': SUM(ABOVE) collects both = 15
     const above = evaluateTableFormula('=SUM(ABOVE)', GRID, { row: 2, col: 0 })
     expect(above.ok).toBe(true)
     expect((above as { value: number }).value).toBe(5 + 10)

@@ -382,7 +382,7 @@ export interface DesktopApi {
   /** MCP bridge: report a command's outcome back to the shell main process */
   reportMcpResult(result: McpCommandResult): void
   /** MCP bridge: announce that this tab's editor is ready for commands */
-  signalMcpReady(): void
+  signalMcpReady(info?: { path?: string | null }): void
   getRecentFiles(): Promise<string[]>
   pickImage(): Promise<PickImageResult | null>
   /** vertical metrics of an installed family (exact name match), null when missing */

@@ -11691,3 +11691,53 @@ tr > .page-gap-cut {
   border-color: var(--ruler-line, #c9ccd1);
   color: #222;
 }
+
+/* ---- image layout-options floating button (Word's little rainbow) ---- */
+.image-wrap-pop {
+  position: fixed;
+  z-index: 80;
+}
+.image-wrap-pop-toggle {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--rb-border, #d0d3d8);
+  border-radius: 50%;
+  background: var(--docs-paper, #fff);
+  color: #5a5f66;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+.image-wrap-pop-toggle:hover {
+  color: #1a66d6;
+  border-color: #1a66d6;
+}
+.image-wrap-pop-menu {
+  margin-top: 6px;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--rb-panel-bg, #fff);
+  border: 1px solid var(--rb-border, #d0d3d8);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+.image-wrap-pop-menu button {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  text-align: left;
+  font-size: 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.image-wrap-pop-menu button:hover {
+  background: var(--rb-hover, #eef2f7);
+}
+.image-wrap-pop-menu button.active {
+  color: #1a66d6;
+  font-weight: 600;
+}

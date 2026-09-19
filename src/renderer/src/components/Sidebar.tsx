@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useDraggable } from '@dnd-kit/core'
 import {
   Plus,
   Clock,
@@ -273,8 +274,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       const isSelected = currentConversationId === session.id
                       const timeAgo = formatTimeAgo(session.updatedAt)
                       return (
+                        <SessionRowDraggable key={session.id} sessionId={session.id} isEditing={editingSessionId === session.id}>
                         <div
-                          key={session.id}
                           onClick={() =>
                             onSelectConversation?.(session.id, session.title, group.name)
                           }
@@ -345,6 +346,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             </button>
                           </div>
                         </div>
+                        </SessionRowDraggable>
                       )
                     })
                   )}
@@ -367,6 +369,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
     </aside>
+  )
+}
+
+/**
+ * 会话行拖拽包装(§5 左右互拖):拖出 = 作为 {kind:'target'} 落到工作区 pane。
+ * 重命名态不带监听(输入框 8px 位移会误触发拖拽);拖出后原行仍在(收回语义对称)。
+ */
+function SessionRowDraggable({
+  sessionId,
+  isEditing,
+  children
+}: {
+  sessionId: string
+  isEditing: boolean
+  children: React.ReactNode
+}) {
+  const { setNodeRef, listeners, attributes } = useDraggable({
+    id: `sidebar-session:${sessionId}`,
+    data: { payload: { kind: 'target' as const, target: { kind: 'chat' as const, sessionId } } }
+  })
+  return (
+    <div
+      ref={setNodeRef}
+      {...(isEditing ? {} : listeners)}
+      {...(isEditing ? {} : attributes)}
+      className="touch-none"
+    >
+      {children}
+    </div>
   )
 }
 

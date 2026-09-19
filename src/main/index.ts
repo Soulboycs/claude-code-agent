@@ -6,6 +6,7 @@ import { existsSync } from 'fs'
 import { createDefaultAgentEngine, AgentEngine } from './agent'
 import { SessionManager, type SessionEngineLike } from './agent/SessionManager'
 import { SendRateMeter } from './agent/utils/sendRateMeter'
+import { DocConflictDetector } from './agent/utils/docConflictDetector'
 import { AgentEvent, ProviderConfig, FileTreeNode, PermissionMode, normalizePermissionMode } from '../shared/types'
 import { logger } from './utils/logger'
 import { registerDocxIpc } from './docx/docxIpc'
@@ -35,6 +36,8 @@ let currentWorkspace: string = process.cwd()
 let sessionManager: SessionManager | null = null
 /** §8.3 指标:webContents.send 次数口径(滚动 1s 窗口峰值) */
 const sendMeter = new SendRateMeter()
+/** 跨会话文档写冲突检测(§6.2 规则5):全部引擎共享一份 */
+const docConflicts = new DocConflictDetector()
 /** sessionId → 创建引擎时烘焙的 workspace(变更时销毁重建,不走 setWorkspaceRoot) */
 const engineWorkspace = new Map<string, string>()
 /** sessionId → 创建引擎时的 provider 指纹;save-config 后清空 = 全量失效,下次 send 惰性重建 */
@@ -256,7 +259,8 @@ async function initAgent() {
       return adaptEngine(
         createDefaultAgentEngine({
           workspaceRoot: pendingCreateCtx.workspaceRoot,
-          providerConfig: pendingCreateCtx.providerConfig
+          providerConfig: pendingCreateCtx.providerConfig,
+          docConflict: docConflicts
         })
       )
     },

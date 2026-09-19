@@ -41,6 +41,33 @@ let requestSeq = 0
 let installed = false
 let getWinRef: (() => BrowserWindowType | null) | null = null
 
+// R11 路径寻址(计划 §6.4):path(canonical key)→ 就绪实例。多文档多 pane 下命令不再广播。
+import { normalizeKeyPath } from '../../shared/paths'
+const wcIdByDocPath = new Map<string, number>()
+const docPathsByWcId = new Map<number, Set<string>>()
+
+function registerDocPath(wcId: number, rawPath: unknown): void {
+  if (typeof rawPath !== 'string' || !rawPath) return
+  const key = normalizeKeyPath(rawPath)
+  wcIdByDocPath.set(key, wcId)
+  let set = docPathsByWcId.get(wcId)
+  if (!set) {
+    set = new Set()
+    docPathsByWcId.set(wcId, set)
+  }
+  set.add(key)
+}
+
+function unregisterWcPaths(wcId: number): void {
+  const set = docPathsByWcId.get(wcId)
+  if (set) {
+    for (const key of set) {
+      if (wcIdByDocPath.get(key) === wcId) wcIdByDocPath.delete(key)
+    }
+    docPathsByWcId.delete(wcId)
+  }
+}
+
 function takeWaiters(wcId: number): ReadyWaiter[] {
   const waiters = readyWaiters.get(wcId) ?? []
   readyWaiters.delete(wcId)
@@ -60,6 +87,7 @@ function watchDestroyed(wcId: number): void {
   wc.once('destroyed', () => {
     watchedIds.delete(wcId)
     readyIds.delete(wcId)
+    unregisterWcPaths(wcId)
     const closed = new Error('The document editor was closed')
     for (const waiter of takeWaiters(wcId)) waiter.reject(closed)
     for (const [requestId, entry] of pending) {
@@ -127,10 +155,11 @@ export function installDocsBridge(getWin: () => BrowserWindowType | null): void 
   if (installed || !ipcMain) return
   installed = true
 
-  ipcMain.on('docs:mcp-ready', (event: any) => {
+  ipcMain.on('docs:mcp-ready', (event: any, info: unknown) => {
     const wcId = event.sender.id
     markReady(wcId)
     watchDestroyed(wcId)
+    registerDocPath(wcId, (info as { path?: unknown } | null)?.path)
   })
 
   ipcMain.on('docs:mcp-result', (event: any, result: unknown) => {
@@ -181,6 +210,38 @@ export async function runDocsCommand(command: string, payload: unknown, targetWc
 }
 
 /**
+ * 按路径寻址的 live 命令(R11,禁跨文档覆写):
+ * 只发给"当前打开的就是该文档"的实例;无实例 → 立即抛错(工具走离线分支)。
+ * 实例端还会校验 targetPath 与自身文档一致,双重保险。
+ */
+export async function runDocsCommandForPath(
+  command: string,
+  docPath: string,
+  payload: unknown
+): Promise<unknown> {
+  const key = normalizeKeyPath(docPath)
+  const wcId = wcIdByDocPath.get(key)
+  if (!wcId) {
+    throw new Error(`NO_LIVE_EDITOR_FOR_PATH:${docPath}`)
+  }
+  const wc = webContents.fromId(wcId)
+  if (!wc || wc.isDestroyed()) {
+    unregisterWcPaths(wcId)
+    throw new Error(`NO_LIVE_EDITOR_FOR_PATH:${docPath}`)
+  }
+  const requestId = `mcp-${++requestSeq}`
+  const result = new Promise<unknown>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(requestId)
+      reject(new Error(`The document command "${command}" timed out after ${COMMAND_TIMEOUT_MS}ms`))
+    }, COMMAND_TIMEOUT_MS)
+    pending.set(requestId, { wcId, resolve, reject, timer })
+  })
+  wc.send('docs:mcp-command', { requestId, command, payload, targetPath: key })
+  return result
+}
+
+/**
  * Notify the UI to open the right-side Word drawer and focus the given file.
  */
 export function notifyFocusWordDoc(filePath: string): void {
@@ -192,10 +253,27 @@ export function notifyFocusWordDoc(filePath: string): void {
 
 /**
  * Notify the Word editor that a file was modified on disk so it can reload.
+ * 统一经 FileChangeHub(50ms 合并 + canonical key),联动层唯一信号源。
  */
-export function notifyWordFileChanged(filePath: string): void {
-  const win = getWinRef?.()
-  if (win && !win.isDestroyed()) {
-    win.webContents.send('docs:file-changed', { filePath })
+import { FileChangeHub } from './fileChangeHub'
+let hub: FileChangeHub | null = null
+function getHub(): FileChangeHub {
+  if (!hub) {
+    hub = new FileChangeHub({
+      send: (channel, payload) => {
+        const win = getWinRef?.()
+        if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
+      }
+    })
   }
+  return hub
+}
+
+export function notifyWordFileChanged(filePath: string): void {
+  getHub().notifyChanged(filePath, 'tool')
+}
+
+/** docs:save/save-as 成功后的通知入口(编辑器保存路径) */
+export function notifyDocsSavedByEditor(filePath: string): void {
+  getHub().notifyChanged(filePath, 'editor')
 }

@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/react'
+import { normalizeKeyPath } from '@shared/paths'
 import { BLANK_BULLET_NUM_ID, BLANK_ORDERED_NUM_ID } from '@genoffice/docx-engine'
 import type { McpCommandMessage, McpEditorCommand } from '../shared/ipc'
 import { executeTool, markDocSeen } from './ai/tools'
@@ -267,8 +268,22 @@ export function installMcpBridge(deps: McpBridgeDeps): () => void {
   if (!desktop?.onMcpCommand || !desktop.reportMcpResult) return () => {}
   let cancelled = false
   let queue: Promise<void> = Promise.resolve()
-  const unsubscribe = desktop.onMcpCommand((message: McpCommandMessage) => {
+  const currentOwnPath = () => normalizeKeyPath(deps.getCtx()?.doc?.filePath ?? '')
+  const unsubscribe = desktop.onMcpCommand((message: McpCommandMessage & { targetPath?: string }) => {
     if (!message || typeof message.requestId !== 'string') return
+    // R11 实例端过滤:命令带 targetPath 且与自身文档不一致 → 立即回错误,不执行
+    // (消灭多实例广播双写;main 收到失败后走离线分支)
+    if (typeof message.targetPath === 'string') {
+      const own = currentOwnPath()
+      if (own !== message.targetPath) {
+        desktop.reportMcpResult?.({
+          requestId: message.requestId,
+          ok: false,
+          error: '__path_mismatch__',
+        })
+        return
+      }
+    }
     queue = queue.then(async () => {
       try {
         const result = await runCommand(deps, message.command, message.payload)
@@ -283,11 +298,26 @@ export function installMcpBridge(deps: McpBridgeDeps): () => void {
     })
   })
   // Let the shell know this tab can accept commands (device for targeted routing).
+  // 携带当前文档路径(R11):main 建 path→实例 注册表,按路径寻址命令。
+  // 就绪后持续守望:实例内切换文档时重报新路径(注册表自愈),路径变化即报。
   void announceWhenLoaded(
     deps,
-    () => desktop.signalMcpReady?.(),
+    () => desktop.signalMcpReady?.({ path: currentOwnPath() || null }),
     () => cancelled,
   )
+  void (async () => {
+    let last: string | null = null
+    for (;;) {
+      if (cancelled) return
+      await new Promise((r) => setTimeout(r, 1500))
+      if (cancelled) return
+      const cur = currentOwnPath() || null
+      if (cur !== last) {
+        last = cur
+        desktop.signalMcpReady?.({ path: cur })
+      }
+    }
+  })()
   return () => {
     cancelled = true
     unsubscribe()

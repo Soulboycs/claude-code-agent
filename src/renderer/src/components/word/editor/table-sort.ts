@@ -91,11 +91,14 @@ export function sortTableByColumn(editor: Editor, opts: SortTableOptions): SortT
   const header = opts.hasHeader ? rows.slice(0, 1) : []
   const body = opts.hasHeader ? rows.slice(1) : rows
   const keyed = body.map((r, i) => ({ r, i, key: rowKeyAt(r, opts.col) }))
+  // direction inside the comparator (not a post-reverse): tied keys keep their
+  // original relative order in BOTH directions, like Word's stable sort
   keyed.sort((a, b) => {
     const c = compareCellKeys(a.key, b.key)
-    return c !== 0 ? c : a.i - b.i
+    if (c !== 0) return opts.asc ? c : -c
+    return a.i - b.i
   })
-  const sorted = opts.asc ? keyed : keyed.reverse()
+  const sorted = keyed
   const nextRows = [...header, ...sorted.map((k) => k.r)]
   const tr = editor.state.tr.replaceWith(
     pos + 1,

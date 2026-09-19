@@ -1,8 +1,31 @@
-import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, it, expect, beforeEach, afterEach, afterAll } from 'bun:test'
 import { AnthropicProvider } from '../src/main/agent/providers/AnthropicProvider'
 import { ResponsesProvider } from '../src/main/agent/providers/ResponsesProvider'
 import { OpenAICompatibleProvider } from '../src/main/agent/providers/LLMProvider'
 import { LLMStreamChunk } from '../src/main/agent/providers/LLMProvider'
+
+// providerHttp.ts 的重试退避(2s×3)会超出 bun 默认 5s 测试超时;
+// 该环境变量是 providerHttp 预留给测试的快路开关(退避 0ms,重试次数不变)
+// 环境是进程级的:保存旧值,套件结束后恢复,避免泄漏到其他测试文件(如 R2/R4 默认值断言)
+const __prevRetryEnv = {
+  delay: process.env.NEXUS_PROVIDER_RETRY_DELAY_MS,
+  max: process.env.CLAUDE_CODE_MAX_RETRIES,
+  legacy: process.env.CLAUDE_STREAM_TRANSIENT_RETRY_MAX,
+}
+afterAll(() => {
+  for (const [k, v] of Object.entries({
+    NEXUS_PROVIDER_RETRY_DELAY_MS: __prevRetryEnv.delay,
+    CLAUDE_CODE_MAX_RETRIES: __prevRetryEnv.max,
+    CLAUDE_STREAM_TRANSIENT_RETRY_MAX: __prevRetryEnv.legacy,
+  })) {
+    if (v === undefined) delete (process.env as any)[k]
+    else (process.env as any)[k] = v
+  }
+})
+process.env.NEXUS_PROVIDER_RETRY_DELAY_MS = '0'
+// 锁定重试次数(503 用例断言 1+3=4 次尝试);并用 per-test timeout 放宽墙钟
+process.env.CLAUDE_CODE_MAX_RETRIES = '3'
+process.env.CLAUDE_STREAM_TRANSIENT_RETRY_MAX = '3'
 
 /**
  * P0/P1 负向 — provider 层故障面：

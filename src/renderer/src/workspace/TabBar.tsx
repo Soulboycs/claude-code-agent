@@ -1,8 +1,11 @@
 import React from 'react'
 import { Plus, X, SplitSquareHorizontal, SplitSquareVertical, MoreHorizontal } from 'lucide-react'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
 import type { PaneState, SplitPosition, TabTarget } from './layout-model'
 import { getTabTitle } from './tab-registry'
 import { useLayoutStore } from './layout-store'
+import { useLinkageStore } from './linkage-store'
+import { normalizeKeyPath } from '@shared/paths'
 
 /**
  * pane 顶部 tab 行(计划 §5.4):横向滚动 chip(不做测量制),
@@ -21,13 +24,27 @@ export function TabBar({
   className?: string
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false)
-  const selectTab = useLayoutStore((s) => s.selectTab)
-  const closeTab = useLayoutStore((s) => s.closeTab)
+  const [ctxMenu, setCtxMenu] = React.useState<{ tabId: string; x: number; y: number } | null>(null)
   const splitPane = useLayoutStore((s) => s.splitPane)
+  const closeTab = useLayoutStore((s) => s.closeTab)
   const closePane = useLayoutStore((s) => s.closePane)
   const doSplit = (position: SplitPosition) => {
     if (onSplit) onSplit(position, pane.id)
     else splitPane(pane.id, position, {})
+  }
+  const runCtxClose = (tabId: string) => {
+    const p = useLayoutStore.getState().layout
+    void p
+    const tabCount = pane.tabs.length
+    if (tabCount > 1) closeTab(tabId)
+    else closePane(pane.id)
+  }
+  const runCtxOthers = (p: PaneState, tabId: string) => {
+    for (const t of p.tabs) if (t.tabId !== tabId) closeTab(t.tabId)
+  }
+  const runCtxRight = (p: PaneState, tabId: string) => {
+    const idx = p.tabs.findIndex((t) => t.tabId === tabId)
+    for (let i = p.tabs.length - 1; i > idx; i--) closeTab(p.tabs[i].tabId)
   }
 
   return (
@@ -36,43 +53,26 @@ export function TabBar({
       className={`flex items-stretch h-9 shrink-0 border-b border-neutral-200 bg-neutral-50 select-none ${className}`}
     >
       <div className="flex items-stretch flex-1 overflow-x-auto min-w-0">
-        {pane.tabs.map((tab) => {
-          const active = pane.focusedTabId === tab.tabId
-          return (
-            <div
-              key={tab.tabId}
-              data-testid={`tab-${tab.tabId}`}
-              onClick={() => selectTab(pane.id, tab.tabId)}
-              className={[
-                'group flex items-center gap-1.5 pl-3 pr-2 my-1 mx-0.5 rounded-md cursor-pointer whitespace-nowrap text-xs',
-                active
-                  ? 'bg-white border border-neutral-300 shadow-xs text-neutral-900'
-                  : 'text-neutral-500 hover:bg-neutral-200/60'
-              ].join(' ')}
-              style={{ minWidth: 96, maxWidth: 160 }}
-            >
-              <span className="truncate flex-1" title={getTabTitle(tab.target)}>
-                {getTabTitle(tab.target)}
-              </span>
-              {pane.tabs.length > 1 && (
-                <button
-                  type="button"
-                  aria-label="Close tab"
-                  data-testid={`close-tab-${tab.tabId}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    closeTab(tab.tabId)
-                  }}
-                  title="关闭标签页"
-                  className="shrink-0 text-neutral-400 hover:text-red-500 transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          )
-        })}
+        {pane.tabs.map((tab, idx) => (
+          <DraggableChip
+            key={tab.tabId}
+            pane={pane}
+            tabId={tab.tabId}
+            tabIndex={idx}
+            onContextMenuTab={(tabId, x, y) => setCtxMenu({ tabId, x, y })}
+          />
+        ))}
       </div>
+      {ctxMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null) }} />
+          <div className="fixed z-50 w-36 rounded-lg border border-neutral-200 bg-white shadow-lg py-1 text-xs" style={{ left: ctxMenu.x, top: ctxMenu.y }}>
+            <button type="button" data-testid="ctx-close" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { runCtxClose(ctxMenu.tabId); setCtxMenu(null) }}>关闭</button>
+            <button type="button" data-testid="ctx-close-others" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { runCtxOthers(pane, ctxMenu.tabId); setCtxMenu(null) }}>关闭其他</button>
+            <button type="button" data-testid="ctx-close-right" className="w-full text-left px-3 py-1.5 hover:bg-neutral-100" onClick={() => { runCtxRight(pane, ctxMenu.tabId); setCtxMenu(null) }}>关闭右侧</button>
+          </div>
+        </>
+      )}
 
       <div className="flex items-center gap-0.5 px-1.5 shrink-0">
         <button
@@ -163,3 +163,90 @@ export function TabBar({
 }
 
 export type { SplitPosition, TabTarget }
+
+/**
+ * 可拖 tab chip(§5):useDraggable(源)+ useDroppable(chip 级落点,插到它旁边)。
+ * PointerSensor distance 8 保证点击选择不被拖拽吞掉;拖后 250ms 内的 click 吞掉(R15)。
+ */
+function DraggableChip({
+  pane,
+  tabId,
+  onContextMenuTab
+}: {
+  pane: PaneState
+  tabId: string
+  tabIndex: number
+  onContextMenuTab?: (tabId: string, x: number, y: number) => void
+}) {
+  const tab = pane.tabs.find((t) => t.tabId === tabId)!
+  const active = pane.focusedTabId === tabId
+  const selectTab = useLayoutStore((s) => s.selectTab)
+  // word 角标(§6.2 规则3):后台被 agent 改动 → 亮点;激活即清
+  const isWord = tab.target.kind === 'word'
+  const wordPath = isWord ? (tab.target as { path: string }).path : ''
+  const hasUpdate = useLinkageStore((s) =>
+    isWord ? s.updatedPaths[normalizeKeyPath(wordPath)] === true : false
+  )
+  const clearUpdated = useLinkageStore((s) => s.clearUpdated)
+  const closeTab = useLayoutStore((s) => s.closeTab)
+  const closePane = useLayoutStore((s) => s.closePane)
+
+  const drag = useDraggable({
+    id: `tab:${tabId}`,
+    data: { payload: { kind: 'tab', tabId } }
+  })
+  const drop = useDroppable({
+    id: `chip:${tabId}`,
+    data: { kind: 'tab-chip', paneId: pane.id, tabId }
+  })
+  const justDraggedRef = React.useRef(0)
+  React.useEffect(() => {
+    if (drag.isDragging) justDraggedRef.current = Date.now()
+  }, [drag.isDragging])
+
+  return (
+    <div
+      ref={drag.setNodeRef}
+      {...drag.listeners}
+      {...drag.attributes}
+      data-testid={`tab-${tabId}`}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContextMenuTab?.(tabId, e.clientX, e.clientY)
+      }}
+      onClick={() => {
+        if (Date.now() - justDraggedRef.current < 250) return // R15:拖后 click 吞掉
+        selectTab(pane.id, tabId)
+        if (isWord) clearUpdated(wordPath)
+      }}
+      className={[
+        'group flex items-center gap-1.5 pl-3 pr-2 my-1 mx-0.5 rounded-md cursor-pointer whitespace-nowrap text-xs',
+        active
+          ? 'bg-white border border-neutral-300 shadow-xs text-neutral-900'
+          : 'text-neutral-500 hover:bg-neutral-200/60',
+        drag.isDragging ? 'opacity-30' : ''
+      ].join(' ')}
+      style={{ minWidth: 96, maxWidth: 160 }}
+    >
+      <span ref={drop.setNodeRef} className="truncate flex-1" title={getTabTitle(tab.target)}>
+        {getTabTitle(tab.target)}
+      </span>
+      {hasUpdate && <span data-testid={`badge-${tabId}`} className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 animate-pulse" />}
+      <button
+        type="button"
+        aria-label="Close tab"
+        data-testid={`close-tab-${tabId}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          // 多 tab → 关本 tab;单 tab → 关本 pane(最后一个可见 pane 由 R3 守门拒绝)
+          if (pane.tabs.length > 1) closeTab(tabId)
+          else closePane(pane.id)
+        }}
+        title="关闭标签页"
+        className="shrink-0 text-neutral-400 hover:text-red-500 transition-colors"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )
+}

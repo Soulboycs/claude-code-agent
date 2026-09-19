@@ -16,7 +16,7 @@ import {
   notifyFocusWordDoc,
   notifyWordFileChanged,
   isDocsEditorReady,
-  runDocsCommand
+  runDocsCommandForPath
 } from '../../docx/docsBridge'
 
 function escapeHtml(text: string): string {
@@ -64,7 +64,7 @@ export const docxReadTool: AgentTool = {
     const fullPath = resolvePath(filePath, context.workspaceRoot)
     if (isDocsEditorReady()) {
       try {
-        const liveRes: any = await runDocsCommand('read_document', {})
+        const liveRes: any = await runDocsCommandForPath('read_document', fullPath, {})
         if (liveRes?.text) {
           return `Docx: ${filePath} (Live Word Canvas State)\n${liveRes.text}`
         }
@@ -201,12 +201,12 @@ export const docxAppendContentTool: AgentTool = {
           })
           .join('')
 
-        await runDocsCommand('insert_content', {
+        await runDocsCommandForPath('insert_content', fullPath, {
           html,
           trackChanges: !!trackChanges,
           author: authorName
         })
-        await runDocsCommand('save_document', { path: fullPath, overwrite: true })
+        await runDocsCommandForPath('save_document', fullPath, { path: fullPath, overwrite: true })
 
         const trackSuffix = trackChanges ? ' (recorded as Track Changes <w:ins>)' : ''
         return `Successfully appended ${items.length} block(s) to ${filePath} via live Word canvas${trackSuffix}.`
@@ -349,14 +349,14 @@ export const docxModifyBlockTool: AgentTool = {
 
     if (isDocsEditorReady()) {
       try {
-        await runDocsCommand('replace_blocks', {
+        await runDocsCommandForPath('replace_blocks', fullPath, {
           startBlockIndex: startIdx,
           endBlockIndex: endIdx,
           html: finalHtml,
           trackChanges: !!trackChanges,
           author: authorName
         })
-        await runDocsCommand('save_document', { path: fullPath, overwrite: true })
+        await runDocsCommandForPath('save_document', fullPath, { path: fullPath, overwrite: true })
 
         const modeStr = trackChanges ? 'with revision marks (Track Changes)' : 'directly (with AI highlight)'
         const navLabel = isMultiBlock ? `第 ${startIdx}-${endIdx} 块` : `第 ${startIdx} 块`
@@ -587,9 +587,9 @@ export const docxApplyOpsTool: AgentTool = {
     const fullPath = resolvePath(filePath, context.workspaceRoot)
     if (isDocsEditorReady()) {
       try {
-        const result: any = await runDocsCommand('apply_ops', { ops, dryRun: !!dryRun })
+        const result: any = await runDocsCommandForPath('apply_ops', fullPath, { ops, dryRun: !!dryRun })
         if (!dryRun) {
-          await runDocsCommand('save_document', { path: fullPath, overwrite: true })
+          await runDocsCommandForPath('save_document', fullPath, { path: fullPath, overwrite: true })
         }
         return `Successfully executed ${ops.length} op(s) on ${filePath}.\n${result?.summary || result?.output || ''}`
       } catch (err: any) {
@@ -631,13 +631,13 @@ export const docxInsertTableTool: AgentTool = {
         const tbody = `<tbody>${rows.map((row: string[]) => `<tr>${row.map((cell: string) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
         const tableHtml = `<table>${thead}${tbody}</table>`
 
-        await runDocsCommand('insert_content', {
+        await runDocsCommandForPath('insert_content', fullPath, {
           html: tableHtml,
           afterBlockIndex,
           trackChanges: !!trackChanges,
           author: authorName
         })
-        await runDocsCommand('save_document', { path: fullPath, overwrite: true })
+        await runDocsCommandForPath('save_document', fullPath, { path: fullPath, overwrite: true })
 
         const trackSuffix = trackChanges ? ' (recorded as Track Changes <w:ins>)' : ''
         return `Successfully inserted a ${rows.length + (headers?.length ? 1 : 0)}x${headers?.length || (rows[0]?.length ?? 0)} table into ${filePath} via live Word canvas${trackSuffix}.`
@@ -730,7 +730,7 @@ export const docxDeleteBlockTool: AgentTool = {
 
     if (isDocsEditorReady()) {
       try {
-        await runDocsCommand('apply_ops', {
+        await runDocsCommandForPath('apply_ops', fullPath, {
           ops: [
             {
               op: 'deleteBlocks',
@@ -738,7 +738,7 @@ export const docxDeleteBlockTool: AgentTool = {
             }
           ]
         })
-        await runDocsCommand('save_document', { path: fullPath, overwrite: true })
+        await runDocsCommandForPath('save_document', fullPath, { path: fullPath, overwrite: true })
         return `Successfully deleted block ${blockIndex} in ${filePath} via live Word canvas.`
       } catch {
         // Fallback to offline engine

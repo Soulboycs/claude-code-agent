@@ -117,7 +117,7 @@ describe('R2 — Anthropic prompt caching 断点', () => {
   })
 })
 
-describe('R2 — 统一重试策略（Anthropic / Gemini / Responses）', () => {
+describe('R2/R4 — 统一重试策略（1:1 cc withRetry 请求级语义）', () => {
   const realFetch = globalThis.fetch
   beforeEach(() => {
     process.env.NEXUS_PROVIDER_RETRY_DELAY_MS = '5'
@@ -125,9 +125,11 @@ describe('R2 — 统一重试策略（Anthropic / Gemini / Responses）', () => 
   afterEach(() => {
     ;(globalThis as any).fetch = realFetch
     delete process.env.NEXUS_PROVIDER_RETRY_DELAY_MS
+    delete process.env.CLAUDE_CODE_MAX_RETRIES
   })
 
-  it('Anthropic：503 持续 → 4 次尝试后抛错，期间发出 3 条重试 statusUpdate', async () => {
+  it('CLAUDE_CODE_MAX_RETRIES=3：503 持续 → 4 次尝试 + 3 条重试 statusUpdate（cc 请求级 env）', async () => {
+    process.env.CLAUDE_CODE_MAX_RETRIES = '3'
     let calls = 0
     const updates: string[] = []
     ;(globalThis as any).fetch = async () => {
@@ -148,7 +150,17 @@ describe('R2 — 统一重试策略（Anthropic / Gemini / Responses）', () => 
     expect(updates.filter((u) => u.includes('Retrying')).length).toBe(3)
   }, 15000)
 
-  it('Gemini：429 持续 → 4 次尝试后抛错', async () => {
+  it('默认 DEFAULT_MAX_RETRIES=10（1:1 cc 常量；单元断言避免外部 env 干扰，行为验证见上一用例）', () => {
+    delete process.env.CLAUDE_CODE_MAX_RETRIES
+    delete process.env.CLAUDE_STREAM_TRANSIENT_RETRY_MAX
+    // getProviderMaxRetries 与 fetchWithStreamingRetry 同源，纯函数无外部依赖
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { getProviderMaxRetries } = require('../src/main/agent/utils/providerHttp')
+    expect(getProviderMaxRetries()).toBe(10)
+  })
+
+  it('Gemini：429 持续 → 按 env 限制次数重试后抛错', async () => {
+    process.env.CLAUDE_CODE_MAX_RETRIES = '2'
     let calls = 0
     ;(globalThis as any).fetch = async () => {
       calls++
@@ -162,10 +174,79 @@ describe('R2 — 统一重试策略（Anthropic / Gemini / Responses）', () => 
       thrown = e
     }
     expect(thrown.message).toContain('429')
-    expect(calls).toBe(4)
+    expect(calls).toBe(3)
   }, 15000)
 
-  it('Responses：500 持续 → 4 次尝试；非瞬态 400 立即抛错不重试', async () => {
+  it('R4 新增：408 请求超时属于瞬态（1:1 cc）→ 重试', async () => {
+    process.env.CLAUDE_CODE_MAX_RETRIES = '2'
+    let calls = 0
+    let okBody = false
+    ;(globalThis as any).fetch = async () => {
+      calls++
+      if (calls > 2) {
+        okBody = true
+        return {
+          ok: true,
+          status: 200,
+          body: { getReader: () => ({ read: async () => ({ done: true, value: undefined }) }) },
+          text: async () => '',
+        } as any
+      }
+      return { ok: false, status: 408, text: async () => 'timeout' } as any
+    }
+    const provider = new ResponsesProvider({ model: 'gpt-5', apiKey: 'k', baseURL: 'http://localhost:9/v1' } as any)
+    const result = await provider.chatStream([{ role: 'user', content: 'x' }] as LLMMessage[], [], () => {})
+    expect(okBody).toBe(true)
+    expect(calls).toBe(3)
+    expect(result.fullContent).toBe('')
+  }, 15000)
+
+  it('R4 新增：x-should-retry:false → 即使 500 也不重试（1:1 cc 头语义，负向）', async () => {
+    let calls = 0
+    ;(globalThis as any).fetch = async () => {
+      calls++
+      return {
+        ok: false,
+        status: 500,
+        headers: new Headers({ 'x-should-retry': 'false' }),
+        text: async () => 'server says no',
+      } as any
+    }
+    const provider = new AnthropicProvider({ model: 'm', apiKey: 'k' } as any)
+    let thrown: any
+    try {
+      await provider.chatStream([{ role: 'user', content: 'x' }] as LLMMessage[], [], () => {})
+    } catch (e) {
+      thrown = e
+    }
+    expect(thrown.message).toContain('500')
+    expect(calls).toBe(1)
+  }, 15000)
+
+  it('R4 新增：x-should-retry:true → 即使 400 也重试（1:1 cc 头语义）', async () => {
+    process.env.CLAUDE_CODE_MAX_RETRIES = '2'
+    let calls = 0
+    ;(globalThis as any).fetch = async () => {
+      calls++
+      return {
+        ok: false,
+        status: 400,
+        headers: new Headers({ 'x-should-retry': 'true' }),
+        text: async () => 'retry me anyway',
+      } as any
+    }
+    const provider = new ResponsesProvider({ model: 'gpt-5', apiKey: 'k', baseURL: 'http://localhost:9/v1' } as any)
+    let thrown: any
+    try {
+      await provider.chatStream([{ role: 'user', content: 'x' }] as LLMMessage[], [], () => {})
+    } catch (e) {
+      thrown = e
+    }
+    expect(thrown.message).toContain('400')
+    expect(calls).toBe(3)
+  }, 15000)
+
+  it('非瞬态 400 立即抛错不重试', async () => {
     let calls = 0
     ;(globalThis as any).fetch = async () => {
       calls++

@@ -12,6 +12,7 @@ import { RetainedPanel } from './RetainedPanel'
 import { TabBar } from './TabBar'
 import { TabContent } from './tab-registry'
 import { bumpRenderCount } from '../utils/perfProbe'
+import { PaneDropZone, DropPreviewOverlay } from './WorkspaceDnd'
 
 export interface SplitRendererHostProps {
   /** TabBar "+" 新建会话(App 提供:创建 session → openTab) */
@@ -142,7 +143,7 @@ function SplitPaneView({
   const content = (
     <div
       data-testid={`pane-${pane.id}`}
-      className="flex flex-col min-w-0 min-h-0 w-full bg-white"
+      className="flex flex-col min-w-0 min-h-0 w-full bg-white relative"
     >
       <TabBar pane={pane} onCreateChat={onCreateChat} onSplit={onSplit} />
       <div className="flex-1 min-h-0 relative">
@@ -151,6 +152,9 @@ function SplitPaneView({
             <TabContent target={tab.target} active={pane.focusedTabId === tab.tabId} tabId={tab.tabId} />
           </RetainedPanel>
         ))}
+        {/* Snap 拖拽(§5):落点命中区 + 半透明预览 */}
+        <PaneDropZone paneId={pane.id} />
+        <DropPreviewOverlay paneId={pane.id} />
       </div>
     </div>
   )

@@ -300,11 +300,12 @@ runToolUse
 
 第一轮（§8，P0–P3）对齐了工具系统的结构与安全语义；第二轮针对首轮对比中发现的**传输层差距**——这些直接决定成本与弱网可用性。
 
-### 10.1 Anthropic prompt caching（1:1 cc-haha 缓存策略）
+### 10.1 Anthropic prompt caching（断点位置对齐 cc-haha 缓存策略）
 
 cc-haha 的序列化层（§3.2）本质是为 prompt cache 服务的；我们此前每个请求都全价重付 system + 工具定义 + 全部历史。现已实现三个缓存断点，与 cc-haha 断点位置一致：
 
 1. **工具断点**：打在**最后一个内置工具**上——内置工具经稳定排序构成连续前缀（§3.1），断点之后的 MCP 工具集易变，不得携带标记，否则断点会被易变内容污染。
+   > 机制披露：cc-haha v0.6.3 客户端**不发送**工具级 cache_control——其断点由服务端 claude_code_system_cache_policy 承担；我们以客户端模拟达到相同的前缀缓存位置。位置一致、机制不同。
 2. **system 断点**：`system` 从字符串改为块数组 `[{type:'text', text, cache_control}]`。
 3. **消息断点**：恰好一个，打在**最后一条消息的最后一个内容块**（1:1 `addCacheBreakpoints` 的 markerIndex = length-1）。会话历史追加式增长，因此每轮只重写最新一轮，工具定义与更早历史全部命中缓存。
 
@@ -318,22 +319,23 @@ cc-haha 的序列化层（§3.2）本质是为 prompt cache 服务的；我们�
 - 默认 3 次（cc-haha 默认 10，我们保守起步）；`CLAUDE_STREAM_TRANSIENT_RETRY_MAX` env 覆盖（与 cc-haha 同名 env 对齐）。
 - `NEXUS_PROVIDER_RETRY_DELAY_MS` 控制退避间隔（默认 2s；测试用 5ms）。
 - 重试期间发 `statusUpdate` chunk（UI 可见"Retrying (attempt n/3)..."）。
+  > R4 更正（对照 cc withRetry.ts 后对齐）：默认次数改为 **10**（cc DEFAULT_MAX_RETRIES）；env 改为 **CLAUDE_CODE_MAX_RETRIES**（cc 请求级覆盖的真名；此前误用其流级 env 名 CLAUDE_STREAM_TRANSIENT_RETRY_MAX，旧名保留兼容）；退避改为**指数**（500ms × 2^(n-1)，上限 30s；cc BASE_DELAY_MS=500 同款）；瞬态集合加入 **408/409**；尊重 **x-should-retry** 头（false 不重试、true 强制重试）。
 - OpenAICompatible 的内联重试实现删除，统一走该助手（消除四份漂移风险——正是第一轮 P0 在 schema 层消灭的同款复制粘贴问题）。
 
 ### 10.3 工具并发 env 覆盖（1:1 getMaxToolUseConcurrency）
 
 `StreamingToolExecutor` 并发池上限支持 `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` env 覆盖（默认仍 10，垃圾值回落默认）。
 
-### 10.4 剩余未对齐项（第三轮候选，按价值排序）
+### 10.4 对齐清单（状态见右列；✅ 两项已在 §11 完成）
 
 | 项 | cc-haha 现状 | 我们差距 | 规模 |
 | :--- | :--- | :--- | :--- |
-| Provider 预设生态 | 15 预设 + Anthropic⇄OpenAI 协议转换代理 | 5 provider 手写直连 | 大（代理含双向流式转换） |
-| 会话 SQLite 索引 | bun:sqlite 全文索引 + projector/recovery + 万级基准 | 纯 JSONL，无搜索索引 | 大 |
-| LLM 记忆抽取 | LLM 侧查询抽取 + 相关记忆预取 | 正则启发式（provider 已注入未用） | 中 |
-| interruptBehavior 语义 | 用户插话时 cancel/block 分级 | 引擎忙时拒绝新消息（无插话队列） | 中（牵涉 UI 队列） |
-| backfillObservableInput | hooks/审批看到展开后的绝对路径，call() 保留原始 | 事件与审批卡显示模型原始参数 | 小 |
-| OS 级沙箱 | @anthropic-ai/sandbox-runtime | 校验式软沙箱 | 大 |
+| Provider 预设生态 | 15 预设 + Anthropic⇄OpenAI 协议转换代理 | 5 provider 手写直连 | 大（代理含双向流式转换） | ⬜ 未做 |
+| 会话 SQLite 索引 | bun:sqlite 全文索引 + projector/recovery + 万级基准 | 纯 JSONL，无搜索索引 | 大 | ⬜ 未做 |
+| LLM 记忆抽取 | LLM 侧查询抽取 + 相关记忆预取 + 团队记忆同步 | 已交付抽取（llm+regex 双模式）；**预取与团队同步未含** | 中 | ✅ 抽取部分（§11） |
+| interruptBehavior 语义 | 用户插话时 cancel/block 分级 | 引擎忙时拒绝新消息（无插话队列） | 中（牵涉 UI 队列） | ⬜ 未做 |
+| backfillObservableInput | hooks/审批看到展开后的绝对路径，call() 保留原始 | ——（固定五路径键，非每工具 hook） | 小 | ✅ 已完成（§11） |
+| OS 级沙箱 | @anthropic-ai/sandbox-runtime | 校验式软沙箱 | 大 | ⬜ 未做 |
 
 
 ---
@@ -356,13 +358,69 @@ cc-haha 的 `backfillObservableInput`（§6 决策 4）保证 hooks/审批/事�
 - **失败面（负向）**：provider 抛错 → 静默回退正则启发式；非 JSON → 回退正则；非法 type → 过滤。回合永不因记忆抽取中断。
 - **成本控制**：直接构造 AgentEngine（测试/CLI）保持 regex 零成本默认——既有记忆测试契约不 变（测试断言 provider 零调用）；仅 `createDefaultAgentEngine`（生产入口）默认 'llm'，可用 `AgentEngineOptions.memoryExtraction` 覆盖。
 
-### 11.3 §10.4 清单更新
+### 11.3 §10.4 清单更新（含权限语义披露）
+
+> 权限语义披露（对照审查发现）：迁移把 cc 的 `default`（写操作需询问）映射到我们的 `ask`（继承 acceptEdits：编辑自动放行），**默认比 cc default 更宽松**；如需 cc default 严格语义，可通过 deny/ask 规则收紧。
 
 | 项 | 状态 |
 | :--- | :--- |
 | backfillObservableInput | ✅ 本轮完成 |
-| LLM 记忆抽取 | ✅ 本轮完成 |
+| LLM 记忆抽取（抽取部分；预取/团队同步未含） | ✅ 本轮完成 |
 | interruptBehavior 插话语义 | 未动（牵涉渲染端消息队列，UI 重构级） |
 | Provider 预设生态 + 协议转换代理 | 未动（大） |
 | 会话 SQLite 全文索引 | 未动（大） |
 | OS 级沙箱 | 未动（大） |
+
+
+---
+
+## 12. 三轮对齐收口报告（最终诚实报告，2026-09-20）
+
+> 依据 evidence-driven-engineering skill「最终完成报告」八要素。覆盖范围：P0–P3 结构对齐 + 独立对抗审查修复 + R2 传输层 + R3 观测/记忆 + R4 cc 语义补齐与真实 E2E。
+
+### 12.1 初始假设 vs 独立审查发现 vs 修复后
+
+| 初始声明/假设 | 独立审查实际发现 | 修复后状态 |
+| :--- | :--- | :--- |
+| 「沙箱路径监狱保护所有文件操作」 | **假设被推翻**：gate 只读 TargetFile/AbsolutePath/path，全部文件/docx 工具（filePath）与 list_directory（dirPath）从未被拦截——路径监狱自 P1 起对文件工具整体失效 | filePath+dirPath 进链；E2E/集成负向用例锁定 |
+| 「门禁体系覆盖所有执行上下文」 | **假设被推翻**：General 子代理 blanket-bypass 零门禁；服务器网关 query 无引擎无沙箱（0.0.0.0 下零闸执行）；无审批回调时 requiresApproval 被静默跳过 | 三处全部 fail-closed/接线；E2E 真实 WS 验证 |
+| 「R2 重试与 cc 同名 env 对齐」 | 对照后发现**同名不同义**（误用 cc 流级 env 名）+ 退避/瞬态集合/头语义三处差异 | 改用 cc 请求级真名 CLAUDE_CODE_MAX_RETRIES、默认 10、指数退避 500ms、408/409、x-should-retry |
+| 「R2 缓存 1:1 cc 缓存策略」 | cc v0.6.3 客户端不发工具级 cache_control（服务端策略承担） | 断点位置对齐成立；机制差异已在 §10.1 披露 |
+| 「三轮切片 ✅ 完成」即合规 | skill 合规审计：缺收口报告/风险登记/交接手册过时/门禁条目缺失等 10 项 gap（1 阻断） | 本报告 + 交接手册重写 + 门禁 §6 + 风险 RSK-06~09 + 审计 §8 补齐 |
+
+### 12.2 P0/P1 问题逐项状态
+
+| 问题 | 级别 | 状态 | 验证证据 |
+| :--- | :--- | :--- | :--- |
+| 子代理门禁穿透（绕过全部闸门） | P0 安全 | 已修复 | reviewFixes 三用例 |
+| 服务器网关零闸执行（0.0.0.0） | P0 安全 | 已修复（引擎+沙箱+模式接线；E2E 真实 WS 验证） | serverGateway E2E |
+| 沙箱 filePath/dirPath 字段漏读 | P0 安全 | 已修复 | agentEngineNegative + reviewFixes |
+| .env/credentials 静默覆写 | P1 安全 | 已修复（内置敏感写入规则+requiresApproval 恢复） | permissionModes/reviewFixes |
+| HITL 无回调静默执行 | P1 安全 | 已修复（fail-closed） | reviewFixes |
+| 幻觉工具名进 HITL 挂起 / 竞态级联饿死 abort / Gemini 块 id 漂移 / 双注记 | P1–P2 | 已修复 | streamingNegative 等 |
+
+### 12.3 测试与门禁状态
+
+- 数量演进（可追溯快照）：415（Phase5）→ 505（P1）→ 517（P2/P3）→ 629（审查修复）→ 643（R2）→ 663（PR 提交）→ 682+（审查员复现，含并行会话增量）。**各时点 0 fail 是硬结论**。
+- 环境与耗时：bun test 约 54–69s（Windows，bun 1.4.2）；vitest 7–11s；真实 LLM E2E 1.35s（DeepSeek 生产同构配置）。
+- 跳过项：真实 LLM E2E 在无 key 环境显式 skip（不混入绿色数字）；本轮实测 0 skip（本机有 key）。
+- 验证层级状态：单元 ✅ / 集成 ✅ / 真实依赖 E2E ✅（网关 WS + 真实 LLM）/ **生产门禁未评估**（真机 Electron 冒烟、部署、监控未做）。
+
+### 12.4 未闭环风险与不能宣称的结论
+
+见风险登记 RSK-06~09：四项大件未对齐（§10.4）、PR 混入并行 WIP、泄漏 key 轮换悬置（🔴 等待用户）、记忆侧调默认开启（可关）。**不能宣称**：「生产可发布」「与 cc-haha 完全等价」「所有风险已消除」。
+
+### 12.5 学到了什么（均来自真实失败，非泛泛心得）
+
+1. **负向测试先于功能信任**：路径监狱失效、审批挂死、级联缺口全部是负向/对抗用例先暴露——正向 happy-path 测试在 415 全绿时这些缺陷已经存在。教训固化为：每个门禁修复必须同时提交其「曾经坏掉会失败」的回归用例（已执行）。
+2. **字段名漂移是安全边界的天敌**：gate 读 TargetFile/path 而工具用 filePath——两套词汇表必然漂移。教训：外部边界（沙箱/权限）应消费 schema 导出的字段名，而非手写枚举（后续改造方向）。
+3. **复制粘贴的复利成本**：4 份 schema 拷贝、双份重试逻辑各自漂移（Gemini STRING/其余 string；只有一份有重试）。教训：第二份拷贝出现时就是提取共享层的信号（P0/R4 两次实践）。
+4. **「1:1」措辞需要机制级核对**：R2 的缓存/env 两处"1:1"声明在对照 cc 源码后被降格——位置/用途对齐不等于机制相同。教训：对齐声明必须附参照文件的具体行号级证据（本报告 §12.1 即此实践）。
+5. **同名 env 不等于同义 env**：CLAUDE_STREAM_TRANSIENT_RETRY_MAX 在 cc 管流级、我们误用作请求级。教训：跨项目复用约定前先读对方常量的真实消费者。
+
+### 12.6 历史结论校正（supersede 记录）
+
+- §15.4「DB 值自动迁移」→ §15.5 更正（DB 只写不读）。
+- §15.1 vitest「37 passed」当时整体 exit 1 → §15.5 更正并修复（现 exit 0）。
+- 进度.md 头部「415 测试/Phase1~5 放行」→ 本报告 supersede（总览已加时点注记）。
+- 交接手册 2026-09-17 版「7 项测试/待实现 subagents」→ 本批重写（全部已交付）。

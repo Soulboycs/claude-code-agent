@@ -54,6 +54,14 @@ describe('word-level compare export with tracked changes (MS Word P1)', () => {
     // deleted text lives in w:delText (Word contract)
     expect(xml).toMatch(/<w:delText[^>]*>[^<]*将被改/)
     expect(xml).toMatch(/<w:delText[^>]*>[^<]*这一段将被整体删除/)
+    // the fully removed paragraph also carries a paragraph-mark deletion
+    // (w:pPr/w:rPr/w:del): accepting all must not leave empty shells
+    const removedPara = xml
+      .split('</w:p>')
+      .find((para) => para.includes('这一段将被整体删除') || para.includes('本章小结：内容将被改写'))
+    expect(removedPara).toBeDefined()
+    expect(removedPara).toContain('<w:pPr><w:rPr><w:del w:id="')
+    expect(removedPara).toContain('w:author="对比审查"')
     // inserted content present as normal w:t inside w:ins
     expect(xml).toMatch(/<w:ins [^>]*>(?:(?!<\/w:ins>).)*新增的完整段落/s)
     // the unchanged paragraph keeps its original bytes verbatim

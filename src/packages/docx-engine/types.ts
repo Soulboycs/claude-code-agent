@@ -1840,6 +1840,13 @@ export interface GeneratedBlock {
   pPrChange?: string | null
   /** Used by editor dirty detection; SaveBlock carries the actual wrapper metadata. */
   blockRevision?: ({ kind: 'ins' | 'del' } & RevisionInfo) | null
+  /**
+   * Tracked DELETION of the paragraph mark itself (w:pPr/w:rPr/w:del, Word's
+   * paragraph-mark removal): accepting the revision in Word removes the whole
+   * paragraph instead of leaving an empty one. Compare-export removed
+   * paragraphs carry this so "accept all" matches Word's own Compare.
+   */
+  paraMarkDel?: RevisionInfo
 }
 
 /** display-only formatting a paragraph style contributes (for on-screen fidelity) */

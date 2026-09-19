@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/core'
 import { useI18n } from '../i18n/locale'
+import {
+  applyFormatReplace,
+  filterRangesByFormat,
+  findFormatRanges,
+  isEmptyFormat,
+  type FindFormat,
+} from '../editor/format-find'
 import { searchPluginKey } from '../editor/extensions'
 
 import {
@@ -100,6 +107,10 @@ export function FindPanel({ editor, onClose, focusFindNonce, focusReplaceNonce }
   const [matchCase, setMatchCase] = useState(false)
   const [wholeWord, setWholeWord] = useState(false)
   const [useWildcards, setUseWildcards] = useState(false)
+  // format find & replace (Word: 更多 → 格式); {} = wildcard / no format action
+  const [findFmt, setFindFmt] = useState<FindFormat>({})
+  const [replFmt, setReplFmt] = useState<FindFormat>({})
+  const [showFmt, setShowFmt] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const replaceInputRef = useRef<HTMLInputElement>(null)
   const indexRef = useRef(0)
@@ -124,7 +135,12 @@ export function FindPanel({ editor, onClose, focusFindNonce, focusReplaceNonce }
   // rescan only updates matches/highlight; scrolling happens on explicit navigation
   const refresh = useCallback(
     (q: string, keepIndex = 0, opts?: Partial<FindOptions>) => {
-      const ranges = findMatches(editor, q, { matchCase, wholeWord, useWildcards, ...opts })
+      const base = findMatches(editor, q, { matchCase, wholeWord, useWildcards, ...opts })
+      const ranges = isEmptyFormat(findFmt)
+        ? base
+        : q
+          ? filterRangesByFormat(editor, base, findFmt)
+          : findFormatRanges(editor, findFmt)
       const active = ranges.length === 0 ? 0 : Math.min(keepIndex, ranges.length - 1)
       setMatches(ranges)
       setIndex(active)
@@ -132,7 +148,7 @@ export function FindPanel({ editor, onClose, focusFindNonce, focusReplaceNonce }
       highlight(ranges, active)
       return ranges
     },
-    [editor, highlight, matchCase, wholeWord, useWildcards],
+    [editor, highlight, matchCase, wholeWord, useWildcards, findFmt],
   )
 
   const refreshRef = useRef(refresh)
@@ -236,7 +252,22 @@ export function FindPanel({ editor, onClose, focusFindNonce, focusReplaceNonce }
     const m = ranges[at]
     if (!m) return
 
+    // format-only replace (empty query + find format): restyle the match
+    if (!query && !isEmptyFormat(findFmt)) {
+      if (!isEmptyFormat(replFmt)) applyFormatReplace(editor, [m], replFmt)
+      const after = refresh(query, at)
+      if (after.length > 0) scrollTo(after[Math.min(at, after.length - 1)])
+      return
+    }
+
     const matchedText = editor.state.doc.textBetween(m.from, m.to, '\n', '\n')
+    // format-only replace across every match
+    if (!query && !isEmptyFormat(findFmt)) {
+      applyFormatReplace(editor, ranges, replFmt)
+      refresh(query)
+      return
+    }
+
     const { regex } = parseWordSearchPattern(query, { matchCase, wholeWord, useWildcards })
     const execMatch = regex.exec(matchedText)
     const groups = execMatch ? Array.from(execMatch).slice(1) : []
@@ -260,6 +291,8 @@ export function FindPanel({ editor, onClose, focusFindNonce, focusReplaceNonce }
         tr.insertText(resolved, m.from, m.to)
         return true
       })
+      if (!isEmptyFormat(replFmt))
+        applyFormatReplace(editor, [{ from: m.from, to: m.from + resolved.length }], replFmt)
     }
     const after = refresh(query, at)
     if (after.length > 0) scrollTo(after[Math.min(at, after.length - 1)])
@@ -304,11 +337,36 @@ export function FindPanel({ editor, onClose, focusFindNonce, focusReplaceNonce }
         return true
       })
     }
+    if (!isEmptyFormat(replFmt)) {
+      const baseRanges = fresh ? fresh.ranges : matches
+      applyFormatReplace(
+        editor,
+        baseRanges.map((m) => ({ from: m.from, to: m.from + (m.to - m.from) })),
+        replFmt,
+      )
+    }
     refresh(query)
-  }, [editor, flushPending, matches, replacement, query, refresh, matchCase, wholeWord, useWildcards])
+  }, [editor, flushPending, matches, replacement, query, refresh, matchCase, wholeWord, useWildcards, findFmt, replFmt])
 
   return (
     <div className="find-panel">
+      {showFmt && (
+        <div className="find-fmt-pop">
+          <div className="find-fmt-head">{t('appFindFormatTitle')}</div>
+          <FmtRow fmt={findFmt} onChange={setFindFmt} />
+          <div className="find-fmt-head">{t('appReplaceFormatTitle')}</div>
+          <FmtRow fmt={replFmt} onChange={setReplFmt} />
+          <button
+            className="find-fmt-clear"
+            onClick={() => {
+              setFindFmt({})
+              setReplFmt({})
+            }}
+          >
+            {t('appFindFormatClear')}
+          </button>
+        </div>
+      )}
       <div className="find-row">
         <input
           ref={inputRef}
@@ -354,6 +412,13 @@ export function FindPanel({ editor, onClose, focusFindNonce, focusReplaceNonce }
           }}
         >
           .*
+        </button>
+        <button
+          className={`find-opt ${showFmt ? 'on' : ''}`}
+          data-tip={t('appFindFormat')}
+          onClick={() => setShowFmt((v) => !v)}
+        >
+          {t('appFindFormat')}
         </button>
         <span className="find-count">
           {query
@@ -410,6 +475,72 @@ export function FindPanel({ editor, onClose, focusFindNonce, focusReplaceNonce }
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+
+/** one format row: font / size (pt) / color / B / I; empty = wildcard */
+function FmtRow({
+  fmt,
+  onChange,
+}: {
+  fmt: FindFormat
+  onChange: (f: FindFormat) => void
+}) {
+  const { t } = useI18n()
+  const boldState = fmt.bold == null ? null : fmt.bold
+  const italicState = fmt.italic == null ? null : fmt.italic
+  return (
+    <div className="find-fmt-row">
+      <input
+        className="find-fmt-font"
+        placeholder={t('appFindFormatAnyFont')}
+        value={fmt.font ?? ''}
+        onChange={(e) => onChange({ ...fmt, font: e.target.value || null })}
+      />
+      <input
+        className="find-fmt-size"
+        type="number"
+        min={1}
+        max={1638}
+        step={0.5}
+        placeholder="pt"
+        title={t('appFindFormatSize')}
+        value={fmt.sizeHalfPoints != null ? fmt.sizeHalfPoints / 2 : ''}
+        onChange={(e) => {
+          const pt = Number(e.target.value)
+          onChange({ ...fmt, sizeHalfPoints: pt > 0 ? Math.round(pt * 2) : null })
+        }}
+      />
+      <input
+        className="find-fmt-color"
+        type="color"
+        title={t('appFindFormatColor')}
+        value={`#${(fmt.color ?? '000000').replace('#', '')}`}
+        onChange={(e) => onChange({ ...fmt, color: e.target.value.slice(1) || null })}
+      />
+      <button
+        className={`find-opt ${boldState === true ? 'on' : boldState === false ? 'off' : ''}`}
+        data-tip={t('appFindFormatBold')}
+        onClick={() =>
+          onChange({ ...fmt, bold: boldState === null ? true : boldState === true ? false : null })
+        }
+      >
+        <b>B</b>
+      </button>
+      <button
+        className={`find-opt ${italicState === true ? 'on' : italicState === false ? 'off' : ''}`}
+        data-tip={t('appFindFormatItalic')}
+        onClick={() =>
+          onChange({
+            ...fmt,
+            italic: italicState === null ? true : italicState === true ? false : null,
+          })
+        }
+      >
+        <i>I</i>
+      </button>
     </div>
   )
 }

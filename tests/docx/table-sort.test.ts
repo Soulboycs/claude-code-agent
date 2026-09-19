@@ -140,6 +140,24 @@ describe('sortTableByColumn (single-transaction row reorder with pinned header)'
     editor.destroy()
   })
 
+  it('descending sort keeps tied keys in their original relative order (Word stable sort)', () => {
+    const editor = makeEditor({
+      type: 'docTable',
+      content: [
+        row('键', '序'),
+        row('X', '1'),
+        row('Y', '2'),
+        row('X', '3'),
+      ],
+    })
+    selectCell(editor, 1, 0)
+    sortTableByColumn(editor, { col: 0, asc: false, hasHeader: true })
+    const rows = tableRowsText(editor)
+    // Y sorts first (desc); the two tied X rows keep their original 1-before-3 order
+    expect(rows.map((r) => r[1])).toEqual(['序', '2', '1', '3'])
+    editor.destroy()
+  })
+
   it('reports no-table when the selection is outside any docTable', () => {
     const editor = makeEditor(TABLE)
     editor.commands.setTextSelection(1)

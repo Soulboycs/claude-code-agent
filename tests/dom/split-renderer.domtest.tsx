@@ -5,7 +5,12 @@
  * 覆盖:默认布局、按钮 split、tab 切换、closeTab 级联、ChatPane 事件投递。
  */
 import React from 'react'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+// 单实例宿主测试只验证"挂载机制",不验证编辑器本体(mock 掉 288KB 的 Tiptap 应用)
+vi.mock('../../src/renderer/src/components/word/App', () => ({
+  App: () => <div data-testid="word-editor-mock" />
+}))
 import { render, fireEvent, screen, act } from '@testing-library/react'
 import { SplitRenderer } from '../../src/renderer/src/workspace/SplitRenderer'
 import { RetainedPanel } from '../../src/renderer/src/workspace/RetainedPanel'
@@ -123,8 +128,8 @@ describe('TabBar — G4/G5 tab 切换与关闭', () => {
     fireEvent.click(chip2)
     const after = collectAllPanes(useLayoutStore.getState().layout.root)[0]
     expect(after.focusedTabId).toBe(pane.tabs[1].tabId)
-    // 两个内容面板都渲染(word 占位可见,chat 隐藏保活)
-    expect(screen.getByTestId('word-pane-placeholder')).toBeTruthy()
+    // 两个内容面板都渲染(word 实编辑器宿主可见,chat 隐藏保活)
+    expect(screen.getByTestId('word-pane')).toBeTruthy()
     const panes = screen.getAllByTestId(`chat-pane-${p0.tabs[0].target.kind === 'chat' ? p0.tabs[0].target.sessionId : ''}`)
     expect(panes.length).toBeGreaterThanOrEqual(1)
   })
@@ -243,6 +248,34 @@ describe('NewTabPane — 落地页卡片(G7,打开标签页)', () => {
     const panes = collectAllPanes(st1.layout.root)
     const newPane = panes.find((p) => p.id !== p0.id)!
     expect(newPane.tabs[0].target).toEqual({ kind: 'word', path: 'D:/docs/博士论文.docx' })
-    expect(screen.getByTestId('word-pane-placeholder')).toBeTruthy()
+    expect(screen.getByTestId('word-pane')).toBeTruthy()
+  })
+})
+
+describe('TabBar — G8 关闭按钮常显与注册表标题(回归:App 漏调 registerBuiltinTabs 曾致全 "Untitled")', () => {
+  it('G8: chip 标题来自注册表(chat → "会话 …"),不回退 Untitled', () => {
+    renderTree()
+    const chip = screen.getAllByTestId(/^tab-tab_/)[0]
+    expect(chip.textContent).toContain('会话')
+    expect(chip.textContent).not.toContain('Untitled')
+  })
+
+  it('G8b: 单 tab pane 的 × 关闭该 pane;最后一个可见 pane 的 × 无效(R3)', () => {
+    renderTree()
+    const st0 = useLayoutStore.getState()
+    const p0 = collectAllPanes(st0.layout.root)[0]
+    // 分割出第二个 pane(落地页),其单 tab 的 × 应关掉整个 pane
+    fireEvent.click(screen.getByTestId(`split-right-btn-${p0.id}`))
+    const st1 = useLayoutStore.getState()
+    const p1 = collectAllPanes(st1.layout.root).find((p) => p.id !== p0.id)!
+    const p1Tab = p1.tabs[0].tabId
+    fireEvent.click(screen.getByTestId(`close-tab-${p1Tab}`))
+    expect(collectAllPanes(useLayoutStore.getState().layout.root).length).toBe(1)
+    // 唯一 pane 的单 tab × → 守门拒绝,pane 仍在
+    const only = collectAllPanes(useLayoutStore.getState().layout.root)[0]
+    fireEvent.click(screen.getByTestId(`close-tab-${only.tabs[0].tabId}`))
+    expect(collectAllPanes(useLayoutStore.getState().layout.root).length).toBe(1)
+    // × 是常显的(不依赖 hover):渲染即可点击
+    expect(screen.getByTestId(`close-tab-${only.tabs[0].tabId}`)).toBeTruthy()
   })
 })
