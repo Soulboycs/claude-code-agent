@@ -1,4 +1,4 @@
-# CONTRACT: 工具并发编排器 (ToolOrchestrator) 与 异步生成器状态机 (query)
+# 契约: 工具并发编排器 (ToolOrchestrator) 与 异步生成器状态机 (query)
 
 ## 1. 契约范围与目标
 本契约定义 Agent 核心运行循环与工具调度器的边界规范，对标 `D:\claude code` 的 `src/query.ts` 与 `src/services/tools/toolOrchestration.ts`。
