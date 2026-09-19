@@ -154,7 +154,8 @@ describe('E2E — AgentEngine tool call', () => {
     expect(toolCallEvents.length).toBeGreaterThan(0)
     const toolNames = toolCallEvents.map(e => e.toolCall?.name)
     // Should call list_directory or similar file tool
-    const fileTools = ['list_directory', 'view_file', 'glob', 'grep']
+    // R5 改名后正名为 LS/Read/Glob/Grep；旧名走别名也兼容
+    const fileTools = ['LS', 'Read', 'Glob', 'Grep', 'list_directory', 'view_file', 'GlobTool', 'GrepTool']
     expect(toolNames.some((n: string) => fileTools.includes(n))).toBe(true)
 
     // Tool should return a result

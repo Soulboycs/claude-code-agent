@@ -5,21 +5,27 @@ import { AgentTool } from './ToolRegistry'
 const MAX_OUTPUT_LENGTH = 50000
 
 export const runCommandTool: AgentTool = {
-  name: 'run_command',
+  // 1:1 cc 命名（R5）；旧名 run_command 等保留为别名兼容既有规则/会话
+  name: 'Bash',
+  aliases: ['run_command', 'bash', 'powershell', 'exec', 'sh'],
   description: 'Execute a shell command in the workspace. Streams output and captures stdout/stderr.',
+  searchHint: 'execute terminal shell command in powershell or bash',
+  interruptBehavior: () => 'cancel',
+  maxResultSizeChars: 50_000,
+  alwaysLoad: true,
+  getActivityDescription: (args) => args?.command ? `Running "${args.command.slice(0, 40)}${args.command.length > 40 ? '...' : ''}"` : 'Running command',
+  getToolUseSummary: (args) => args?.command ? `$ ${args.command}` : null,
+  toAutoClassifierInput: (args) => args?.command || '',
   parameters: z.object({
     command: z.string().describe('The command line string to execute'),
     timeoutMs: z.number().int().positive().default(30000).describe('Timeout in milliseconds (default 30s)')
   }),
-  requiresApproval: () => {
-    // By default, terminal execution requires human-in-the-loop approval for safety
-    return true
-  },
+  requiresApproval: () => true,
   execute: async ({ command, timeoutMs }, context) => {
     return new Promise((resolve, reject) => {
       const isWindows = process.platform === 'win32'
       const shell = isWindows ? 'powershell.exe' : '/bin/bash'
-      const shellArgs = isWindows ? ['-NoProfile', '-Command', command] : ['-c', command]
+      const shellArgs = isWindows ? ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', command] : ['-c', command]
 
       let stdoutAccumulated = ''
       let stderrAccumulated = ''
@@ -27,7 +33,8 @@ export const runCommandTool: AgentTool = {
 
       const child = spawn(shell, shellArgs, {
         cwd: context.workspaceRoot,
-        env: { ...process.env, PAGER: 'cat' }
+        env: { ...process.env, PAGER: 'cat' },
+        windowsHide: true
       })
 
       const timer = setTimeout(() => {
