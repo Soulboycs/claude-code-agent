@@ -326,5 +326,33 @@ describe('Chat State Machine — MessageBlock 有序时序流水线 (Interleaved
     expect(occurrences).toBe(1) // 去重失效 = [Error: X] 刷屏回归
     expect(asst.content).toContain('Partial answer before failure')
   })
+
+  it('load_history replaces messages cleanly and clears activeTurnId', () => {
+    state = startUserTurn(state, 'Old turn', 'turn_old')
+    expect(state.messages.length).toBe(2)
+
+    const historicalMessages = [
+      { id: 'h1', role: 'user' as const, content: 'Historical prompt', timestamp: 1000 },
+      { id: 'h2', role: 'assistant' as const, content: 'Historical answer', isStreaming: true, timestamp: 1001 }
+    ]
+
+    state = chatReducer(state, { type: 'load_history', messages: historicalMessages })
+
+    expect(state.messages.length).toBe(2)
+    expect(state.messages[0].content).toBe('Historical prompt')
+    expect(state.messages[1].content).toBe('Historical answer')
+    // Crucial: ensures loaded messages have isStreaming set to false so no spinner lingers
+    expect(state.messages[1].isStreaming).toBe(false)
+    expect(state.activeTurnId).toBeNull()
+  })
+
+  it('clear action resets chat state to empty with null activeTurnId', () => {
+    state = startUserTurn(state, 'Will clear', 'turn_clear')
+    expect(state.messages.length).toBe(2)
+
+    state = chatReducer(state, { type: 'clear' })
+    expect(state.messages.length).toBe(0)
+    expect(state.activeTurnId).toBeNull()
+  })
 })
 

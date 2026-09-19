@@ -7,6 +7,11 @@ interface StreamingTextProps {
   isStreaming?: boolean
   className?: string
   onComplete?: () => void
+  /**
+   * 直显模式(计划 §8.2 打字机分级):非聚焦 pane 跳过插值与 rAF 循环,
+   * content 变化直接进入渲染(合帧后 ~30/s 提交),消除多 pane 下的 rAF setState 风暴。
+   */
+  instant?: boolean
 }
 
 /** S2 心跳阈值：超过该时长未收到新 chunk 且仍在流式中 → 显示 [Receiving...] */
@@ -17,11 +22,12 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
   content,
   isStreaming = false,
   className = '',
-  onComplete
+  onComplete,
+  instant = false
 }) => {
   const pacerRef = useRef<StreamPacer>(new StreamPacer())
   const [displayedText, setDisplayedText] = useState<string>(() => {
-    if (!isStreaming) return content || ''
+    if (!isStreaming || instant) return content || ''
     pacerRef.current.setTarget(content || '')
     return pacerRef.current.getDisplayed()
   })
@@ -33,6 +39,15 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
   const hasStreamedRef = useRef(false)
 
   useEffect(() => {
+    if (instant) {
+      // 直显路径:取消任何已存在的循环,内容即状态
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
+      setDisplayedText(content || '')
+      return
+    }
     const pacer = pacerRef.current
     pacer.setTarget(content || '')
 
@@ -82,13 +97,13 @@ export const StreamingText: React.FC<StreamingTextProps> = ({
         rafIdRef.current = null
       }
     }
-  }, [content, isStreaming, onComplete])
+  }, [content, isStreaming, instant, onComplete])
 
   // S2 心跳：流式中断流/工具长执行超过阈值时提示 [Receiving...]，新数据到达即熄灭
   useEffect(() => {
     const lastUpdateRef = { time: performance.now() }
     setIsStalled(false)
-    if (!isStreaming) return
+    if (!isStreaming || instant) return
 
     const id = setInterval(() => {
       setIsStalled(performance.now() - lastUpdateRef.time > HEARTBEAT_STALL_MS)
